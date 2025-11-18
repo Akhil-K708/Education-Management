@@ -1,6 +1,5 @@
-// app/_layout.tsx
 import { Stack } from 'expo-router';
-import { AuthProvider } from '../src/context/AuthContext'; // <-- మీ పాత్ ../src కరెక్ట్!
+import { AuthProvider } from '../src/context/AuthContext';
 
 export default function RootLayout() {
   return (

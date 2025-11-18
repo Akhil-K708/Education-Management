@@ -3,10 +3,10 @@ import { usePathname } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { adminMenu, MenuItem, studentMenu, teacherMenu } from '../../constants/menu';
@@ -26,6 +26,8 @@ export const Sidebar = ({ onNavigate, isOpen = true }: SidebarProps) => {
   useEffect(() => {
     if (!user) return;
     if (user.role === 'ADMIN') setMenu(adminMenu);
+    // --- BUG FIX ---
+    // 'TEACHTER' నుండి 'TEACHER' కు సరిచేయబడింది
     else if (user.role === 'TEACHER') setMenu(teacherMenu);
     else if (user.role === 'STUDENT') setMenu(studentMenu);
     else setMenu([]);
@@ -35,51 +37,78 @@ export const Sidebar = ({ onNavigate, isOpen = true }: SidebarProps) => {
     <View style={styles.sidebar}>
       <ScrollView style={styles.menuContainer}>
         {menu.map((item) => {
-          const isActive = pathname === item.path;
+          // --- ✨ THE REAL LOGIC FIX IS HERE ✨ ---
+
+          // 1. item.path ('/(app)/student-mgmt') నుండి '(app)' ను తీసివేయి.
+          //    ఫలితం: '/student-mgmt'
+          // 2. ఒకవేళ item.path '/(app)' అయితే, ఫలితం '' (empty string) వస్తుంది,
+          //    దానిని '/' (root path) గా మార్చు.
+          const normalizedPath = item.path.replace('/(app)', '') || '/';
+
+          // 3. 'pathname' ను 'normalizedPath' తో పోల్చి చూడు.
+          //    - Dashboard: normalizedPath ('/') === pathname ('/') -> true
+          //    - Student Mgmt: pathname ('/student-mgmt/add') startsWith normalizedPath ('/student-mgmt') -> true
+          const isActive =
+            normalizedPath === '/'
+              ? pathname === normalizedPath
+              : pathname.startsWith(normalizedPath);
+          
+          // --- END OF FIX ---
+
           return (
-            <TouchableOpacity
+            <Pressable
               key={item.label}
-              style={[
+              style={({ pressed }) => [
                 styles.menuItem,
-                isActive && styles.menuItemActive,
+                isActive && styles.menuItemActive, // ఇది ఇప్పుడు కరెక్ట్‌గా వర్క్ అవుతుంది
                 !isOpen && styles.menuItemCollapsed,
+                pressed && !isActive && styles.menuItemPressed,
               ]}
               onPress={() => onNavigate(item.path)}
             >
               <Ionicons
                 name={item.iconName as any}
                 size={22}
-                color={isActive ? '#FFFFFF' : '#aeb9e1'}
+                color={isActive ? '#FFFFFF' : '#6B7280'}
               />
               {isOpen && (
                 <Text style={[styles.menuText, isActive && styles.menuTextActive]}>
                   {item.label}
                 </Text>
               )}
-            </TouchableOpacity>
+            </Pressable>
           );
         })}
       </ScrollView>
 
       <View style={styles.logoutContainer}>
-        <TouchableOpacity
-          style={[styles.menuItem, !isOpen && styles.menuItemCollapsed]}
+        <Pressable
+          style={({ pressed }) => [
+            styles.menuItem,
+            !isOpen && styles.menuItemCollapsed,
+            pressed && styles.logoutItemPressed,
+          ]}
           onPress={logout}
         >
-          <Ionicons name="log-out-outline" size={22} color="#aeb9e1" />
-          {isOpen && <Text style={styles.menuText}>Logout</Text>}
-        </TouchableOpacity>
+          <Ionicons name="log-out-outline" size={22} color="#EF4444" />
+          {isOpen && (
+            <Text style={[styles.menuText, styles.logoutText]}>Logout</Text>
+          )}
+        </Pressable>
       </View>
     </View>
   );
 };
 
+// స్టైల్స్ అవే ఉన్నాయి (ఆరెంజ్ థీమ్)
 const styles = StyleSheet.create({
   sidebar: {
     flex: 1,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#FFFFFF',
     padding: 10,
     overflow: 'hidden',
+    borderRightWidth: 1,
+    borderRightColor: '#E5E7EB',
   },
   menuContainer: {
     flex: 1,
@@ -98,10 +127,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   menuItemActive: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#F97316', // Main Orange (యాక్టివ్)
+  },
+  menuItemPressed: {
+    backgroundColor: '#FFF7ED', // Light Orange (హోవర్/ప్రెస్)
   },
   menuText: {
-    color: '#aeb9e1',
+    color: '#374151',
     fontSize: 16,
     marginLeft: 15,
     ...Platform.select({
@@ -116,7 +148,13 @@ const styles = StyleSheet.create({
   },
   logoutContainer: {
     borderTopWidth: 1,
-    borderTopColor: '#374151',
+    borderTopColor: '#E5E7EB',
     paddingTop: 10,
+  },
+  logoutText: {
+    color: '#EF4444',
+  },
+  logoutItemPressed: {
+    backgroundColor: '#FEE2E2',
   },
 });

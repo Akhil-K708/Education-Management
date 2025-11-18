@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import { getDashboardData } from '../../api/dashboardApi';
 import { DashboardData } from '../../types/dashboard';
@@ -85,14 +85,13 @@ export const AdminDashboard = () => {
 
   if (isMobile) {
     return (
-      // ఇక్కడ ScrollView బదులు View వాడాలి
-      <View style={styles.container}> 
+      <ScrollView style={styles.container}> 
         {renderStats()}
         <EarningsChart data={earningsChart} />
         <EventCalendar />
         <StudentDemographicsChart data={studentDemographics} />
         <NoticeBoard notices={notices} />
-      </View>
+      </ScrollView>
     );
   }
 
