@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Text,
   useWindowDimensions,
-  View
+  View,
 } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { getStudentAttendance } from '../../src/api/attendanceApi';
@@ -73,7 +73,7 @@ export default function AttendanceScreen() {
       marks[log.date] = {
         selected: true,
         selectedColor: color,
-        marked: log.status === 'HOLIDAY', // Show distinct dot for holidays
+        marked: log.status === 'HOLIDAY', 
         dotColor: 'white'
       };
     });
@@ -144,39 +144,7 @@ export default function AttendanceScreen() {
           </View>
       </View>
 
-      {/* --- 2. CALENDAR CARD --- */}
-      <Text style={styles.sectionHeader}>Monthly Record</Text>
-      <View style={styles.card}>
-          <Calendar
-              markedDates={markedDates}
-              onDayPress={(day: DateData) => handleDayPress(day)}
-              theme={{
-                  todayTextColor: '#F97316',
-                  arrowColor: '#F97316',
-                  textDayFontWeight: '500',
-                  textMonthFontWeight: 'bold',
-                  textDayHeaderFontWeight: '600',
-              }}
-          />
-          
-          {/* Legend */}
-          <View style={styles.legendContainer}>
-              <View style={styles.legendItem}>
-                  <View style={[styles.dot, {backgroundColor: '#10B981'}]} />
-                  <Text style={styles.legendText}>Present</Text>
-              </View>
-              <View style={styles.legendItem}>
-                  <View style={[styles.dot, {backgroundColor: '#EF4444'}]} />
-                  <Text style={styles.legendText}>Absent</Text>
-              </View>
-              <View style={styles.legendItem}>
-                  <View style={[styles.dot, {backgroundColor: '#8B5CF6'}]} />
-                  <Text style={styles.legendText}>Holiday</Text>
-              </View>
-          </View>
-      </View>
-
-      {/* --- 3. SELECTED DATE INFO (Shows Holiday Reason) --- */}
+      {/* --- 2. SELECTED DATE INFO CARD (Moved Here) --- */}
       {selectedDateInfo && (
           <View style={styles.infoCard}>
              <View style={styles.infoRow}>
@@ -212,6 +180,38 @@ export default function AttendanceScreen() {
              )}
           </View>
       )}
+
+      {/* --- 3. CALENDAR CARD (Now Below Info) --- */}
+      <Text style={styles.sectionHeader}>Monthly Record</Text>
+      <View style={styles.card}>
+          <Calendar
+              markedDates={markedDates}
+              onDayPress={(day: DateData) => handleDayPress(day)}
+              theme={{
+                  todayTextColor: '#F97316',
+                  arrowColor: '#F97316',
+                  textDayFontWeight: '500',
+                  textMonthFontWeight: 'bold',
+                  textDayHeaderFontWeight: '600',
+              }}
+          />
+          
+          {/* Legend */}
+          <View style={styles.legendContainer}>
+              <View style={styles.legendItem}>
+                  <View style={[styles.dot, {backgroundColor: '#10B981'}]} />
+                  <Text style={styles.legendText}>Present</Text>
+              </View>
+              <View style={styles.legendItem}>
+                  <View style={[styles.dot, {backgroundColor: '#EF4444'}]} />
+                  <Text style={styles.legendText}>Absent</Text>
+              </View>
+              <View style={styles.legendItem}>
+                  <View style={[styles.dot, {backgroundColor: '#8B5CF6'}]} />
+                  <Text style={styles.legendText}>Holiday</Text>
+              </View>
+          </View>
+      </View>
 
     </ScrollView>
   );
