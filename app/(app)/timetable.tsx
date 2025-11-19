@@ -3,8 +3,6 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,12 +11,14 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Calendar } from 'react-native-calendars';
 import { getStudentTimetable } from '../../src/api/timetableApi';
 import { useAuth } from '../../src/context/AuthContext';
 import {
-  StudentSubjectTimetable,
-  StudentTimetableResponse,
-  TimetableMini,
+  DayEntry,
+  Period,
+  StudentWeeklyTimetableDTO,
+  UniqueSubject
 } from '../../src/types/timetable';
 
 export default function TimetableScreen() {
@@ -26,12 +26,15 @@ export default function TimetableScreen() {
   const router = useRouter();
   const user = state.user;
   const { width } = useWindowDimensions();
-  const isMobile = width < 768;
+  const isWeb = width > 768;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [timetableData, setTimetableData] = useState<StudentTimetableResponse | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<StudentSubjectTimetable | null>(null);
+  
+  const [timetableData, setTimetableData] = useState<StudentWeeklyTimetableDTO | null>(null);
+  const [uniqueSubjects, setUniqueSubjects] = useState<UniqueSubject[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<UniqueSubject | null>(null);
+  const [calendarMarkedDates, setCalendarMarkedDates] = useState<any>({});
 
   const fetchData = async () => {
     if (!user?.username) return;
@@ -39,11 +42,31 @@ export default function TimetableScreen() {
       setLoading(true);
       const data = await getStudentTimetable(user.username);
       setTimetableData(data);
+
+      const subjectsMap = new Map<string, UniqueSubject>();
       
-      // Default గా మొదటి సబ్జెక్ట్‌ని సెలెక్ట్ చేద్దాం
-      if (data.subjects && data.subjects.length > 0) {
-        setSelectedSubject(data.subjects[0]);
+      data.weeklyTimetable.forEach((day) => {
+        day.periods.forEach((p) => {
+          if (!subjectsMap.has(p.subjectId)) {
+            subjectsMap.set(p.subjectId, {
+              subjectId: p.subjectId,
+              subjectName: p.subjectName,
+              teacherId: p.teacherId,
+              teacherName: p.teacherName
+            });
+          }
+        });
+      });
+      
+      const subjectsList = Array.from(subjectsMap.values());
+      setUniqueSubjects(subjectsList);
+      
+      if (subjectsList.length > 0) {
+        const classTeacherId = data.classTeacher?.teacherId;
+        const defaultSub = subjectsList.find(s => s.teacherId === classTeacherId) || subjectsList[0];
+        handleSubjectPress(defaultSub, data.weeklyTimetable);
       }
+
     } catch (error) {
       console.error('Failed to load timetable:', error);
     } finally {
@@ -61,70 +84,101 @@ export default function TimetableScreen() {
     fetchData();
   };
 
-  const handleSubjectPress = (subject: StudentSubjectTimetable) => {
-    setSelectedSubject(subject);
+  const updateCalendarMarks = (subject: UniqueSubject, weeklyData: DayEntry[]) => {
+    const todayString = new Date().toISOString().split('T')[0];
+    const marked: any = {};
+
+    weeklyData.forEach((dayEntry) => {
+      const hasClass = dayEntry.periods.some(p => p.subjectId === subject.subjectId);
+      
+      if (hasClass && dayEntry.date) {
+        marked[dayEntry.date] = {
+            marked: true, 
+            dotColor: '#F97316', 
+            activeOpacity: 0
+        };
+      }
+    });
+
+    marked[todayString] = {
+        ...(marked[todayString] || {}),
+        selected: true,
+        selectedColor: '#F97316'
+    };
+
+    setCalendarMarkedDates(marked);
   };
 
-  if (state.status === 'loading' || !user) {
+  const handleSubjectPress = (subject: UniqueSubject, data = timetableData?.weeklyTimetable) => {
+    setSelectedSubject(subject);
+    if (data) {
+        updateCalendarMarks(subject, data);
+    }
+  };
+
+  if (state.status === 'loading' || !user || (loading && !timetableData)) {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
   }
 
-  if (loading && !timetableData) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
-  }
+  if (!timetableData) return null;
 
-  if (!timetableData) {
-     return (
-         <View style={styles.centered}>
-             <Text>No timetable data found.</Text>
-             <TouchableOpacity onPress={fetchData} style={{marginTop: 20}}>
-                 <Text style={{color: '#F97316'}}>Retry</Text>
-             </TouchableOpacity>
-         </View>
-     );
-  }
+  const isClassTeacher = selectedSubject?.teacherId === timetableData.classTeacher?.teacherId;
+  const teacherNameDisplay = selectedSubject?.teacherName + (isClassTeacher ? " (Class Teacher)" : "");
 
-  // --- RENDER ITEMS ---
-
-  const renderSubjectItem = ({ item }: { item: StudentSubjectTimetable }) => (
-    <TouchableOpacity
-      style={[
-        styles.subjectButton,
-        selectedSubject?.subjectId === item.subjectId && styles.subjectButtonActive,
-      ]}
-      onPress={() => handleSubjectPress(item)}>
-      <Text
-        style={[
-          styles.subjectButtonText,
-          selectedSubject?.subjectId === item.subjectId && styles.subjectButtonTextActive,
-        ]}>
-        {item.subjectName}
-      </Text>
-    </TouchableOpacity>
+  const subjectSchedule = timetableData.weeklyTimetable.flatMap(day => 
+    day.periods
+      .filter(p => p.subjectId === selectedSubject?.subjectId)
+      .map(p => ({
+        day: day.day,
+        ...p
+      }))
   );
 
-  const renderWeeklyItem = ({ item }: { item: TimetableMini }) => (
-    <View style={styles.timeRow}>
-      <View style={styles.dayContainer}>
-         <Text style={styles.timeDay}>{item.day}</Text>
-      </View>
-      <View style={styles.timeInfo}>
-          <Text style={styles.timeTime}>{item.startTime} - {item.endTime}</Text>
-          <Text style={styles.teacherText}>{item.teacherName}</Text>
-      </View>
+  const todayDateString = new Date().toISOString().split('T')[0];
+  const todayEntry = timetableData.weeklyTimetable.find(d => d.date === todayDateString);
+  const todayClasses = todayEntry ? todayEntry.periods : [];
+
+  const renderWeeklyItem = (item: Period & { day: string }) => (
+    <View style={styles.rowItem}>
+       <View style={styles.colLeft}>
+          <View style={styles.dayBadge}>
+             <Text style={styles.dayText}>{item.day.substring(0, 3)}</Text>
+          </View>
+       </View>
+
+       <View style={styles.colCenter}>
+         <View style={styles.timeBadge}>
+            <Ionicons name="time-outline" size={14} color="#6B7280" style={{marginRight:4}} />
+            <Text style={styles.timeText}>{item.startTime} - {item.endTime}</Text>
+         </View>
+       </View>
+
+       <View style={styles.colRight}>
+         <Text style={styles.infoText}>
+             Class: {timetableData.classSection.className}-{timetableData.classSection.sectionName}
+         </Text>
+       </View>
     </View>
   );
 
-  const renderTodayItem = ({ item }: { item: TimetableMini }) => (
-    <View style={styles.todayRow}>
-      <View style={styles.todayTimeBox}>
-          <Text style={styles.todayTime}>{item.startTime}</Text>
-          <Text style={styles.todayTimeEnd}>{item.endTime}</Text>
-      </View>
-      <View style={styles.todayContent}>
-          <Text style={styles.todaySubject}>{item.subjectName}</Text>
-          <Text style={styles.todayTeacher}>{item.teacherName}</Text>
-      </View>
+  const renderTodayItem = (item: Period) => (
+    <View style={styles.rowItem}>
+        <View style={styles.colLeft}>
+            <Text style={styles.subjectTextList}>{item.subjectName}</Text>
+        </View>
+
+        <View style={styles.colCenter}>
+            <View style={styles.timeBadge}>
+                <Text style={styles.timeText}>{item.startTime} - {item.endTime}</Text>
+            </View>
+        </View>
+
+        <View style={styles.colRight}>
+            <View style={styles.teacherTag}>
+                <Ionicons name="person-circle-outline" size={16} color="#4B5563" style={{marginRight:4}}/>
+                <Text style={styles.teacherTextList}>{item.teacherName}</Text>
+            </View>
+        </View>
     </View>
   );
 
@@ -132,78 +186,110 @@ export default function TimetableScreen() {
     <ScrollView 
         style={styles.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={{ paddingBottom: 40 }}
     >
-      <Text style={styles.title}>My Timetable</Text>
-
-      {/* Class Teacher Info Card */}
-      <View style={styles.teacherCard}>
-        <Ionicons name="school-outline" size={40} color="#F97316" />
-        <View style={styles.teacherInfo}>
-          <Text style={styles.teacherLabel}>Class Teacher</Text>
-          <Text style={styles.teacherName}>
-            {timetableData.classTeacher?.fullName || 'Not Assigned'}
-          </Text>
-          <Text style={styles.classInfo}>
-             Class: {timetableData.classSection?.className} - {timetableData.classSection?.sectionName}
-          </Text>
-        </View>
+      <Text style={styles.pageTitle}>My Timetable</Text>
+      <View style={styles.cardContainer}>
+         <View style={styles.teacherRow}>
+            <View style={styles.teacherAvatar}>
+                <Ionicons name="school" size={24} color="#FFFFFF" />
+            </View>
+            <View>
+                <Text style={styles.teacherLabel}>Subject Teacher</Text>
+                <Text style={styles.teacherValue}>
+                    {teacherNameDisplay}
+                </Text>
+            </View>
+         </View>
       </View>
 
-      {/* Subjects Horizontal List */}
-      <View style={styles.subjectsContainer}>
-        <Text style={styles.sectionTitle}>My Subjects</Text>
-        <FlatList
-          data={timetableData.subjects}
-          renderItem={renderSubjectItem}
-          keyExtractor={(item) => item.subjectId}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingVertical: 10 }}
-        />
+      <Text style={styles.sectionHeader}>My Subjects</Text>
+      <View style={styles.subjectsRow}>
+        {uniqueSubjects.map((sub) => (
+             <TouchableOpacity
+                key={sub.subjectId}
+                style={[
+                    styles.subjectPill,
+                    selectedSubject?.subjectId === sub.subjectId && styles.subjectPillActive
+                ]}
+                onPress={() => handleSubjectPress(sub)}
+             >
+                 <Text style={[
+                     styles.subjectText, 
+                     selectedSubject?.subjectId === sub.subjectId && styles.subjectTextActive
+                 ]}>{sub.subjectName}</Text>
+             </TouchableOpacity>
+        ))}
       </View>
 
-      <View style={[styles.mainContent, isMobile && styles.mainContentMobile]}>
-        
-        {/* Left Column: Weekly Schedule for Selected Subject */}
-        <View style={[styles.leftColumn, isMobile && styles.leftColumnMobile]}>
-          <Text style={styles.sectionTitle}>
-             {selectedSubject ? `${selectedSubject.subjectName} Schedule` : 'Weekly Schedule'}
-          </Text>
-          <View style={styles.card}>
-            {selectedSubject && selectedSubject.periods.length > 0 ? (
-              <FlatList
-                data={selectedSubject.periods}
-                renderItem={renderWeeklyItem}
-                keyExtractor={(item, index) => index.toString()}
-                scrollEnabled={false}
-              />
-            ) : (
-              <View style={styles.emptyState}>
-                  <Ionicons name="calendar-outline" size={40} color="#D1D5DB" />
-                  <Text style={styles.emptyText}>No schedule for this subject</Text>
-              </View>
-            )}
-          </View>
+      <View style={[styles.mainGrid, isWeb && styles.mainGridWeb]}>
+        <View style={[styles.leftColumn, isWeb && styles.leftColumnWeb]}>
+            
+            <Text style={styles.subHeader}>
+                {selectedSubject ? `${selectedSubject.subjectName} Present Week Schedule` : 'Schedule'}
+            </Text>
+            
+            <View style={styles.cardContainer}>
+                {subjectSchedule.length > 0 ? (
+                    subjectSchedule.map((item, index) => (
+                        <View key={index}>
+                             {renderWeeklyItem(item)}
+                             {index < subjectSchedule.length - 1 && <View style={styles.separator} />}
+                        </View>
+                    ))
+                ) : (
+                    <View style={styles.emptyState}>
+                        <Ionicons name="calendar-clear-outline" size={40} color="#E5E7EB" />
+                        <Text style={styles.noDataText}>No classes this week</Text>
+                    </View>
+                )}
+            </View>
+
+            <View style={{ marginTop: 24 }}>
+                <Text style={styles.subHeader}>Today's Classes</Text>
+                <View style={styles.cardContainer}>
+                    {todayClasses.length > 0 ? (
+                        todayClasses.map((item, index) => (
+                            <View key={`today-${index}`}>
+                                {renderTodayItem(item)}
+                                {index < todayClasses.length - 1 && <View style={styles.separator} />}
+                            </View>
+                        ))
+                    ) : (
+                        <View style={styles.emptyState}>
+                             <Ionicons name="happy-outline" size={40} color="#E5E7EB" />
+                             <Text style={styles.noDataText}>No classes today!</Text>
+                        </View>
+                    )}
+                </View>
+            </View>
+
         </View>
 
-        {/* Right Column: Today's Schedule */}
-        <View style={[styles.rightColumn, isMobile && styles.rightColumnMobile]}>
-          <Text style={styles.sectionTitle}>Today's Classes</Text>
-          <View style={styles.card}>
-             {timetableData.todayTimetable && timetableData.todayTimetable.length > 0 ? (
-                <FlatList
-                    data={timetableData.todayTimetable}
-                    renderItem={renderTodayItem}
-                    keyExtractor={(item, index) => `today-${index}`}
-                    scrollEnabled={false}
+        <View style={[styles.rightColumn, isWeb && styles.rightColumnWeb]}>
+            <View style={styles.cardContainer}>
+                <Calendar
+                    markedDates={calendarMarkedDates}
+                    theme={{
+                        backgroundColor: '#ffffff',
+                        calendarBackground: '#ffffff',
+                        textSectionTitleColor: '#9CA3AF',
+                        selectedDayBackgroundColor: '#F97316',
+                        selectedDayTextColor: '#ffffff',
+                        todayTextColor: '#F97316',
+                        dayTextColor: '#1F2937',
+                        textDisabledColor: '#E5E7EB',
+                        dotColor: '#F97316',
+                        selectedDotColor: '#ffffff',
+                        arrowColor: '#F97316',
+                        monthTextColor: '#111827',
+                        indicatorColor: '#F97316',
+                        textDayFontWeight: '500',
+                        textMonthFontWeight: 'bold',
+                        textDayHeaderFontWeight: '600',
+                    }}
                 />
-             ) : (
-                 <View style={styles.emptyState}>
-                     <Ionicons name="happy-outline" size={40} color="#10B981" />
-                     <Text style={styles.emptyText}>No classes today!</Text>
-                 </View>
-             )}
-          </View>
+            </View>
         </View>
 
       </View>
@@ -214,101 +300,114 @@ export default function TimetableScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: Platform.OS === 'web' ? 20 : 16,
-    backgroundColor: '#F3F4F6',
+    padding: 24,
+    backgroundColor: '#F3F4F6', 
   },
   centered: {
-    flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F3F4F6',
+    flex: 1, justifyContent: 'center', alignItems: 'center'
   },
-  title: {
-    fontSize: 28, fontWeight: 'bold', marginBottom: 20, color: '#111827',
+  pageTitle: {
+    fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 20,
   },
-  
-  // Teacher Card
-  teacherCard: {
+  cardContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 5,
+    width: '100%',
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.05, 
+    shadowRadius: 12, 
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F3F4F6', 
+  },
+  teacherRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5,
-    borderLeftWidth: 4, borderLeftColor: '#F97316',
   },
-  teacherInfo: { marginLeft: 16 },
-  teacherLabel: { fontSize: 12, color: '#6B7280', textTransform: 'uppercase', fontWeight: '600' },
-  teacherName: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginTop: 2 },
-  classInfo: { fontSize: 14, color: '#4B5563', marginTop: 2 },
-
-  // Subjects
-  subjectsContainer: { marginBottom: 10 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 12 },
-  subjectButton: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 8, paddingHorizontal: 16,
+  teacherAvatar: {
+    width: 50, height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F97316', 
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 16,
+    shadowColor: '#F97316', shadowOffset: {width:0, height:2}, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4
+  },
+  teacherLabel: {
+    fontSize: 12, color: '#6B7280', marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '600'
+  },
+  teacherValue: {
+    fontSize: 16, color: '#111827', fontWeight: 'bold',
+  },
+  sectionHeader: {
+    fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 12, marginTop: 16
+  },
+  subjectsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 24,
+  },
+  subjectPill: {
+    paddingVertical: 8, 
+    paddingHorizontal: 20,
     borderRadius: 20,
-    marginRight: 10,
-    borderWidth: 1, borderColor: '#E5E7EB',
-  },
-  subjectButtonActive: {
-    backgroundColor: '#F97316', borderColor: '#F97316',
-  },
-  subjectButtonText: { fontSize: 14, fontWeight: '500', color: '#374151' },
-  subjectButtonTextActive: { color: '#FFFFFF' },
-
-  // Layout
-  mainContent: { flex: 1, flexDirection: 'row', gap: 20 },
-  mainContentMobile: { flexDirection: 'column' },
-  leftColumn: { flex: 1.5 },
-  leftColumnMobile: { marginBottom: 20 },
-  rightColumn: { flex: 1 },
-  rightColumnMobile: { flex: 1 },
-  
-  card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    elevation: 2,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5,
-    minHeight: 200,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  emptyState: {
-      alignItems: 'center', justifyContent: 'center', padding: 30,
+  subjectPillActive: {
+    backgroundColor: '#F97316',
+    borderColor: '#F97316',
+    shadowColor: '#F97316', shadowOffset: {width:0, height:2}, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3
   },
-  emptyText: { color: '#9CA3AF', marginTop: 10 },
-
-  // Weekly Item
-  timeRow: {
+  subjectText: {
+    fontSize: 14, color: '#4B5563', fontWeight: '600',
+  },
+  subjectTextActive: {
+    color: '#FFFFFF',
+  },
+  mainGrid: { flexDirection: 'column' },
+  mainGridWeb: { flexDirection: 'row', gap: 32 }, 
+  leftColumn: { marginBottom: 20 },
+  leftColumnWeb: { flex: 1.5 }, 
+  rightColumn: { marginBottom: 20 },
+  rightColumnWeb: { flex: 1 }, 
+  subHeader: {
+    fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12,
+  },
+  rowItem: {
     flexDirection: 'row',
-    paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
     alignItems: 'center',
+    paddingVertical: 12,
   },
-  dayContainer: {
-      width: 50, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: '#FFF7ED', borderRadius: 8, paddingVertical: 4,
-      marginRight: 12,
+  separator: {
+      height: 1,
+      backgroundColor: '#F3F4F6',
+      width: '100%',
   },
-  timeDay: { fontSize: 14, fontWeight: 'bold', color: '#C2410C' },
-  timeInfo: { flex: 1 },
-  timeTime: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  teacherText: { fontSize: 13, color: '#6B7280' },
-
-  // Today Item
-  todayRow: {
-      flexDirection: 'row', marginBottom: 12,
-      backgroundColor: '#F9FAFB', borderRadius: 8, padding: 10,
+  colLeft: { flex: 1, alignItems: 'flex-start' },
+  dayBadge: {
+      backgroundColor: '#FFF7ED', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6
   },
-  todayTimeBox: {
-      alignItems: 'center', justifyContent: 'center',
-      borderRightWidth: 1, borderRightColor: '#E5E7EB',
-      paddingRight: 10, marginRight: 10,
-      minWidth: 60,
+  dayText: {
+    fontSize: 13, fontWeight: 'bold', color: '#C2410C', textTransform: 'capitalize'
   },
-  todayTime: { fontSize: 14, fontWeight: 'bold', color: '#111827' },
-  todayTimeEnd: { fontSize: 12, color: '#6B7280' },
-  todayContent: { flex: 1, justifyContent: 'center' },
-  todaySubject: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  todayTeacher: { fontSize: 13, color: '#6B7280' },
+  subjectTextList: {
+      fontSize: 15, fontWeight: 'bold', color: '#111827', textTransform: 'capitalize'
+  },
+  colCenter: { flex: 1.5, alignItems: 'center' },
+  timeBadge: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: '#F9FAFB', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6
+  },
+  timeText: { fontSize: 14, color: '#374151', fontWeight: '500' },
+  colRight: { flex: 1, alignItems: 'flex-end' },
+  infoText: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
+  teacherTag: { flexDirection: 'row', alignItems: 'center' },
+  teacherTextList: { fontSize: 13, color: '#374151', fontWeight: '600' },
+  emptyState: { alignItems: 'center', justifyContent: 'center', padding: 20 },
+  noDataText: { textAlign: 'center', color: '#9CA3AF', marginVertical: 10, fontStyle: 'italic' }
 });

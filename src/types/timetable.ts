@@ -1,3 +1,5 @@
+// src/types/timetable.ts
+
 export interface ClassSectionMini {
   classSectionId: string;
   className: string;
@@ -10,34 +12,34 @@ export interface TeacherMini {
   fullName: string;
 }
 
-export interface TimetableMini {
-  day: string;
+export interface Period {
   startTime: string;
   endTime: string;
-  subjectName: string;
-  teacherName: string;
-}
-
-export interface StudentSubjectTimetable {
   subjectId: string;
   subjectName: string;
   teacherId: string;
   teacherName: string;
-  weeklyDays: string[];
-  periods: TimetableMini[];
 }
 
-export interface WeeklyTimetable {
-  day: string;
-  list: TimetableMini[];
+export interface DayEntry {
+  day: string;  // e.g., "MONDAY"
+  date: string; // e.g., "2025-11-20"
+  periods: Period[];
 }
 
-export interface StudentTimetableResponse {
+export interface StudentWeeklyTimetableDTO {
   studentId: string;
   studentName: string;
+  classSectionId: string;
   classSection: ClassSectionMini;
-  classTeacher: TeacherMini;
-  subjects: StudentSubjectTimetable[];
-  todayTimetable: TimetableMini[];
-  fullWeekTimetable: WeeklyTimetable[];
+  classTeacher: TeacherMini | null;
+  weeklyTimetable: DayEntry[];
+}
+
+// Frontend Helper Interface for Unique Subject List
+export interface UniqueSubject {
+  subjectId: string;
+  subjectName: string;
+  teacherId: string;
+  teacherName: string;
 }
