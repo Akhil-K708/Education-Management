@@ -1,5 +1,3 @@
-// src/types/timetable.ts
-
 export interface ClassSectionMini {
   classSectionId: string;
   className: string;
