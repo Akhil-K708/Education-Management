@@ -30,3 +30,23 @@ export interface DashboardData {
   studentDemographics: StudentDemographics;
   notices: NoticeItem[];
 }
+
+export interface StudentProfileInfo {
+  name: string;
+  class: string;
+  section: string;
+  studentId: string;
+  fatherName: string;
+  profilePhotoUrl?: string;
+}
+
+export interface ClassStats {
+  total: number;
+  girls: number;
+  boys: number;
+}
+
+export interface AttendanceChartData {
+  labels: string[];
+  datasets: [{ data: number[] }];
+}

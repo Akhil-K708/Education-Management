@@ -12,23 +12,25 @@ export default function TransportScreen() {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
   }
 
-  // --- ప్రొటెక్షన్ గార్డ్ ---
-  if (user.role !== 'ADMIN') {
+  if (user.role !== 'ADMIN' && user.role !== 'STUDENT') {
     return router.replace('/(app)');
   }
 
-  // --- అడ్మిన్ కంటెంట్ ---
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Transport</Text>
-      <Text style={styles.subtitle}>Your transport and vehicle details will appear here.</Text>
+      <Text style={styles.title}>Transport Details</Text>
+      <Text style={styles.subtitle}>
+        {user.role === 'ADMIN' 
+          ? 'Manage transport vehicles and routes.' 
+          : 'View your bus route and driver details here.'}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#FFFFFF', borderRadius: 8 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 10 },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 10, color: '#111827' },
   subtitle: { fontSize: 16, color: '#6B7280' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

@@ -25,7 +25,12 @@ export const teacherMenu: MenuItem[] = [
 
 export const studentMenu: MenuItem[] = [
   { label: 'Dashboard', iconName: 'apps-outline', path: '/(app)' },
-  { label: 'My Timetable', iconName: 'time-outline', path: '/(app)/timetable' },
+  { label: 'My Profile', iconName: 'person-circle-outline', path: '/(app)/profile' }, 
+  { label: 'Timetable', iconName: 'time-outline', path: '/(app)/timetable' },
+  { label: 'Attendance', iconName: 'calendar-outline', path: '/(app)/attendance' },
+  { label: 'Assignments', iconName: 'document-text-outline', path: '/(app)/assignments' }, 
+  { label: 'Exam Timetable', iconName: 'calendar-number-outline', path: '/(app)/examschedule' }, 
+  { label: 'Transport', iconName: 'bus-outline', path: '/(app)/transport' }, 
+  { label: 'Fee Details', iconName: 'wallet-outline', path: '/(app)/fees' }, 
   { label: 'My Results', iconName: 'ribbon-outline', path: '/(app)/results' },
-  { label: 'Settings', iconName: 'settings-outline', path: '/(app)/settings' },
 ];

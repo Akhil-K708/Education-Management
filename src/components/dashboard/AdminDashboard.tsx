@@ -85,13 +85,13 @@ export const AdminDashboard = () => {
 
   if (isMobile) {
     return (
-      <ScrollView style={styles.container}> 
+      <View style={styles.container}> 
         {renderStats()}
         <EarningsChart data={earningsChart} />
         <EventCalendar />
         <StudentDemographicsChart data={studentDemographics} />
         <NoticeBoard notices={notices} />
-      </ScrollView>
+      </View>
     );
   }
 

@@ -3,7 +3,7 @@ import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../src/context/AuthContext';
 
-export default function AttendanceScreen() {
+export default function FeesScreen() {
   const { state } = useAuth();
   const router = useRouter();
   const user = state.user;
@@ -12,20 +12,10 @@ export default function AttendanceScreen() {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
   }
 
-  if (user.role !== 'TEACHER' && user.role !== 'STUDENT') {
-    return router.replace('/(app)');
-  }
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>
-        {user.role === 'TEACHER' ? 'Manage Attendance' : 'My Attendance'}
-      </Text>
-      <Text style={styles.subtitle}>
-        {user.role === 'TEACHER' 
-          ? 'Your attendance management panel will appear here.' 
-          : 'Your monthly attendance records and stats will appear here.'}
-      </Text>
+      <Text style={styles.title}>Fee Details</Text>
+      <Text style={styles.subtitle}>Your fee payment status and history will appear here.</Text>
     </View>
   );
 }

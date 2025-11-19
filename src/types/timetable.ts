@@ -1,36 +1,43 @@
-export interface Teacher {
-  id: string;
-  name: string;
-  avatarUrl?: string;
+export interface ClassSectionMini {
+  classSectionId: string;
+  className: string;
+  sectionName: string;
+  academicYear: string;
 }
 
-export interface Subject {
-  id: string;
-  name: string;
-  teacher: Teacher;
+export interface TeacherMini {
+  teacherId: string;
+  fullName: string;
 }
 
-export interface WeeklyScheduleItem {
-  id: string;
-  day: 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat';
-  time: string;
-  room: string;
-}
-
-export interface StudentTimetableData {
-  classTeacher: Teacher;
-  subjects: Subject[];
-}
-
-export interface TeacherDetailsData {
-  weeklySchedule: WeeklyScheduleItem[];
-  attendance: string[];
-}
-
-export interface DailyScheduleItem {
-  id: string;
+export interface TimetableMini {
+  day: string;
+  startTime: string;
+  endTime: string;
   subjectName: string;
-  time: string;
-  room: string;
   teacherName: string;
+}
+
+export interface StudentSubjectTimetable {
+  subjectId: string;
+  subjectName: string;
+  teacherId: string;
+  teacherName: string;
+  weeklyDays: string[];
+  periods: TimetableMini[];
+}
+
+export interface WeeklyTimetable {
+  day: string;
+  list: TimetableMini[];
+}
+
+export interface StudentTimetableResponse {
+  studentId: string;
+  studentName: string;
+  classSection: ClassSectionMini;
+  classTeacher: TeacherMini;
+  subjects: StudentSubjectTimetable[];
+  todayTimetable: TimetableMini[];
+  fullWeekTimetable: WeeklyTimetable[];
 }
