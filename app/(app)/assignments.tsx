@@ -16,7 +16,6 @@ export default function AssignmentsScreen() {
     );
   }
 
-  // --- ROLE BASED RENDERING ---
   if (user.role === 'TEACHER') {
       return <TeacherAssignmentsView />;
   } 
@@ -25,7 +24,6 @@ export default function AssignmentsScreen() {
       return <StudentAssignmentsView />;
   }
 
-  // Fallback for Admin or others
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <Text>Admin Assignment View Coming Soon...</Text>

@@ -53,7 +53,7 @@ const WebInput = ({ mode, value, onChange }: { mode: 'date'|'time', value: Date,
 
 // --- TYPE FOR SCHEDULE ITEM ---
 interface ScheduleItem {
-    id: string; // Temporary ID for list
+    id: string; 
     subjectId: string;
     subjectName: string;
     examDate: string;
@@ -83,7 +83,6 @@ export default function AdminExamScheduleView() {
   const [selectedExamId, setSelectedExamId] = useState('');
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   
-  // Draft State (For adding to list)
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [scheduleDate, setScheduleDate] = useState(new Date());
   const [startTime, setStartTime] = useState(new Date());
@@ -92,7 +91,6 @@ export default function AdminExamScheduleView() {
   // The Preview List
   const [scheduleList, setScheduleList] = useState<ScheduleItem[]>([]);
 
-  // Pickers Visibility (Mobile Only)
   const [showDate, setShowDate] = useState(false);
   const [showStart, setShowStart] = useState(false);
   const [showEnd, setShowEnd] = useState(false);

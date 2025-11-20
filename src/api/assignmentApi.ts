@@ -1,20 +1,16 @@
 import { Assignment, AssignmentSubmission } from '../types/assignment';
 import { studentApi } from './axiosInstance';
 
-// --- STUDENT ENDPOINTS ---
-
-// 1. Get Assignments for a Class (Student View)
 export const getStudentAssignments = async (classSectionId: string): Promise<Assignment[]> => {
   try {
     const response = await studentApi.get<Assignment[]>(`/assignments/class/${classSectionId}`);
     return response.data;
   } catch (error) {
     console.error("Error fetching class assignments:", error);
-    return []; // Return empty array on error to prevent crash
+    return []; 
   }
 };
 
-// 2. Get My Submissions (Student View)
 export const getMySubmissions = async (studentId: string): Promise<AssignmentSubmission[]> => {
   try {
     const response = await studentApi.get<AssignmentSubmission[]>(`/assignment-submissions/student/${studentId}`);
@@ -25,7 +21,6 @@ export const getMySubmissions = async (studentId: string): Promise<AssignmentSub
   }
 };
 
-// 3. Submit Assignment (Student Action)
 export const submitStudentAssignment = async (
   assignmentId: string, 
   subjectId: string, 
@@ -43,9 +38,6 @@ export const submitStudentAssignment = async (
   }
 };
 
-// --- TEACHER ENDPOINTS ---
-
-// 4. Get Assignments Created by Teacher
 export const getTeacherAssignments = async (teacherId: string): Promise<Assignment[]> => {
   try {
     const response = await studentApi.get<Assignment[]>(`/assignments/teacher/${teacherId}`);
@@ -56,8 +48,6 @@ export const getTeacherAssignments = async (teacherId: string): Promise<Assignme
   }
 };
 
-// 5. Create New Assignment
-// Endpoint: /assignment/{teacherId}/{subjectId}/{classSectionId}
 export const createAssignment = async (
   teacherId: string,
   subjectId: string,
@@ -76,7 +66,6 @@ export const createAssignment = async (
   }
 };
 
-// 6. Get All Submissions for an Assignment (Teacher View)
 export const getAssignmentSubmissions = async (
   assignmentId: string,
   subjectId: string
@@ -92,7 +81,6 @@ export const getAssignmentSubmissions = async (
   }
 };
 
-// 7. Review Submission (Grade/Remark)
 export const reviewSubmission = async (
   assignmentId: string,
   subjectId: string,

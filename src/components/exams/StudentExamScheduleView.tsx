@@ -1,16 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import { getAllExams, getExamTimetable } from '../../api/examApi';
 import { getStudentProfile } from '../../api/studentService';
@@ -36,7 +36,7 @@ export default function StudentExamScheduleView() {
   // --- DATE FORMATTER (YYYY-MM-DD -> DD-MM-YYYY) ---
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
-    const parts = dateString.split('-'); // [2025, 11, 20]
+    const parts = dateString.split('-'); 
     if (parts.length === 3) {
         return `${parts[2]}-${parts[1]}-${parts[0]}`;
     }
@@ -48,8 +48,6 @@ export default function StudentExamScheduleView() {
     setLoading(true);
 
     try {
-        // Note: Teacher logic is handled in separate component now, 
-        // but keeping this check ensures this component works safely if reused.
       if (user.role === 'TEACHER') {
         const allExams = await getAllExams();
         setExamsList(allExams);
@@ -183,7 +181,6 @@ export default function StudentExamScheduleView() {
                         <Text style={styles.cellText}>{subjectItem.roomNumber || 'N/A'}</Text>
                     </View>
                 </View>
-                {/* Separator line except for last item */}
                 {(dayIndex < studentSchedule.length - 1 || subIndex < dayItem.subjects.length - 1) && (
                     <View style={styles.tableSeparator} />
                 )}
@@ -259,7 +256,6 @@ export default function StudentExamScheduleView() {
                 style={styles.modalOverlay} 
                 onPress={() => setIsDropdownVisible(false)}
                 >
-                {/* --- FIX FOR WEB MODAL WIDTH --- */}
                 <View style={[styles.modalContent, isWeb && styles.modalContentWeb]}>
                     <Text style={styles.modalTitle}>Select Examination</Text>
                     <FlatList
@@ -384,8 +380,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     marginHorizontal: 16,
   },
-  
-  // Columns 
+   
   col1: { flex: 1.2, paddingRight: 4 },    
   col2: { flex: 1.4, paddingRight: 4 },  
   col3: { flex: 1.4, paddingRight: 4 },  
@@ -428,18 +423,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Modal
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20,
   },
   modalContent: {
     backgroundColor: '#FFF', borderRadius: 16, padding: 20, maxHeight: '60%',
-    width: '85%', // Default for Mobile
+    width: '85%',
     alignSelf: 'center',
   },
-  // --- THIS FIXES THE WEB MODAL WIDTH ---
   modalContentWeb: {
-    width: 450, // Fixed width for Web
+    width: 450, 
     maxWidth: '90%',
   },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16, color: '#111827' },

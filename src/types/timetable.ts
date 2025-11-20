@@ -20,8 +20,8 @@ export interface Period {
 }
 
 export interface DayEntry {
-  day: string;  // e.g., "MONDAY"
-  date: string; // e.g., "2025-11-20"
+  day: string; 
+  date: string; 
   periods: Period[];
 }
 
@@ -34,7 +34,6 @@ export interface StudentWeeklyTimetableDTO {
   weeklyTimetable: DayEntry[];
 }
 
-// Frontend Helper Interface for Unique Subject List
 export interface UniqueSubject {
   subjectId: string;
   subjectName: string;

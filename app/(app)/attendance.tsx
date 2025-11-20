@@ -16,6 +16,5 @@ export default function AttendanceScreen() {
       return <TeacherAttendanceView />;
   }
 
-  // Student View (Default)
   return <StudentAttendanceView />;
 }

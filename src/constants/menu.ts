@@ -8,8 +8,8 @@ export const adminMenu: MenuItem[] = [
   { label: 'Dashboard', iconName: 'apps-outline', path: '/(app)' },
   { label: 'Students', iconName: 'people-outline', path: '/(app)/students' },
   { label: 'Teachers', iconName: 'person-outline', path: '/(app)/teachers' },
-  { label: 'Timetable', iconName: 'time-outline', path: '/(app)/timetable' }, // Added
-  { label: 'Exam Timetable', iconName: 'calendar-number-outline', path: '/(app)/examschedule' }, // Added
+  { label: 'Timetable', iconName: 'time-outline', path: '/(app)/timetable' }, 
+  { label: 'Exam Timetable', iconName: 'calendar-number-outline', path: '/(app)/examschedule' }, 
   { label: 'Class', iconName: 'layers-outline', path: '/(app)/class' },
   { label: 'Transport', iconName: 'bus-outline', path: '/(app)/transport' },
   { label: 'Notice', iconName: 'megaphone-outline', path: '/(app)/notice' },
@@ -18,10 +18,10 @@ export const adminMenu: MenuItem[] = [
 
 export const teacherMenu: MenuItem[] = [
   { label: 'Dashboard', iconName: 'apps-outline', path: '/(app)' },
-  { label: 'My Schedule', iconName: 'time-outline', path: '/(app)/timetable' }, // Updated Name
+  { label: 'My Schedule', iconName: 'time-outline', path: '/(app)/timetable' }, 
   { label: 'Attendance', iconName: 'calendar-outline', path: '/(app)/attendance' },
   { label: 'Assignments', iconName: 'document-text-outline', path: '/(app)/assignments' },
-  { label: 'Exam Schedule', iconName: 'calendar-number-outline', path: '/(app)/examschedule' }, // Added
+  { label: 'Exam Schedule', iconName: 'calendar-number-outline', path: '/(app)/examschedule' }, 
   { label: 'Settings', iconName: 'settings-outline', path: '/(app)/settings' },
 ];
 

@@ -91,7 +91,6 @@ export default function TeacherAttendanceView() {
 
   const toggleStatus = (studentId: string) => {
       setAttendanceMap(prev => {
-          // Default logic: Undefined means 'PRESENT'
           const currentStatus = prev[studentId] === 'ABSENT' ? 'ABSENT' : 'PRESENT';
           
           if (currentStatus === 'ABSENT') {
@@ -142,8 +141,6 @@ export default function TeacherAttendanceView() {
       if(date) setSelectedDate(date);
   };
 
-  // --- WEB PICKER FIX ---
-  // Covers the entire "Date Card" area, ensuring clicks register everywhere.
   const WebDatePicker = () => {
     if (Platform.OS !== 'web') return null;
     return React.createElement('input', {
@@ -155,9 +152,9 @@ export default function TeacherAttendanceView() {
            left: 0,
            width: '100%',
            height: '100%',
-           opacity: 0, // Invisible but clickable
+           opacity: 0, 
            cursor: 'pointer',
-           zIndex: 50, // High z-index to be on top
+           zIndex: 50, 
            margin: 0,
            padding: 0
        },
@@ -178,7 +175,6 @@ export default function TeacherAttendanceView() {
         
         {/* DATE SELECTOR */}
         <View style={styles.dateCardWrapper}>
-            {/* Visual UI */}
             <View style={styles.dateCard}>
                 <View>
                     <Text style={styles.dateLabel}>Select Date:</Text>
@@ -192,7 +188,6 @@ export default function TeacherAttendanceView() {
                 </View>
             </View>
             
-            {/* Web Input Overlay (Fixes Web Click Issue) */}
             <WebDatePicker />
 
             {/* Mobile Touchable Overlay */}
@@ -237,12 +232,10 @@ export default function TeacherAttendanceView() {
             data={students}
             keyExtractor={item => item.studentId}
             contentContainerStyle={{paddingBottom: 100}}
-            // --- CRITICAL FIX FOR MOBILE WHITE CARD ---
             extraData={attendanceMap} 
-            // ------------------------------------------
             renderItem={({item}) => {
                 const isAbsent = attendanceMap[item.studentId] === 'ABSENT';
-                const isPresent = !isAbsent; // Default is Present
+                const isPresent = !isAbsent; 
 
                 return (
                     <View style={[styles.studentCard, isAbsent && styles.cardAbsent]}>

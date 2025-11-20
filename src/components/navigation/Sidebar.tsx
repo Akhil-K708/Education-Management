@@ -26,8 +26,6 @@ export const Sidebar = ({ onNavigate, isOpen = true }: SidebarProps) => {
   useEffect(() => {
     if (!user) return;
     if (user.role === 'ADMIN') setMenu(adminMenu);
-    // --- BUG FIX ---
-    // 'TEACHTER' నుండి 'TEACHER' కు సరిచేయబడింది
     else if (user.role === 'TEACHER') setMenu(teacherMenu);
     else if (user.role === 'STUDENT') setMenu(studentMenu);
     else setMenu([]);
@@ -37,30 +35,19 @@ export const Sidebar = ({ onNavigate, isOpen = true }: SidebarProps) => {
     <View style={styles.sidebar}>
       <ScrollView style={styles.menuContainer}>
         {menu.map((item) => {
-          // --- ✨ THE REAL LOGIC FIX IS HERE ✨ ---
-
-          // 1. item.path ('/(app)/student-mgmt') నుండి '(app)' ను తీసివేయి.
-          //    ఫలితం: '/student-mgmt'
-          // 2. ఒకవేళ item.path '/(app)' అయితే, ఫలితం '' (empty string) వస్తుంది,
-          //    దానిని '/' (root path) గా మార్చు.
           const normalizedPath = item.path.replace('/(app)', '') || '/';
-
-          // 3. 'pathname' ను 'normalizedPath' తో పోల్చి చూడు.
-          //    - Dashboard: normalizedPath ('/') === pathname ('/') -> true
-          //    - Student Mgmt: pathname ('/student-mgmt/add') startsWith normalizedPath ('/student-mgmt') -> true
           const isActive =
             normalizedPath === '/'
               ? pathname === normalizedPath
               : pathname.startsWith(normalizedPath);
           
-          // --- END OF FIX ---
 
           return (
             <Pressable
               key={item.label}
               style={({ pressed }) => [
                 styles.menuItem,
-                isActive && styles.menuItemActive, // ఇది ఇప్పుడు కరెక్ట్‌గా వర్క్ అవుతుంది
+                isActive && styles.menuItemActive, 
                 !isOpen && styles.menuItemCollapsed,
                 pressed && !isActive && styles.menuItemPressed,
               ]}
@@ -100,7 +87,6 @@ export const Sidebar = ({ onNavigate, isOpen = true }: SidebarProps) => {
   );
 };
 
-// స్టైల్స్ అవే ఉన్నాయి (ఆరెంజ్ థీమ్)
 const styles = StyleSheet.create({
   sidebar: {
     flex: 1,
@@ -127,10 +113,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   menuItemActive: {
-    backgroundColor: '#F97316', // Main Orange (యాక్టివ్)
+    backgroundColor: '#F97316', 
   },
   menuItemPressed: {
-    backgroundColor: '#FFF7ED', // Light Orange (హోవర్/ప్రెస్)
+    backgroundColor: '#FFF7ED', 
   },
   menuText: {
     color: '#374151',

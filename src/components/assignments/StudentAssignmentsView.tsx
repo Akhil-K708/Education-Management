@@ -1,17 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { getMySubmissions, getStudentAssignments, submitStudentAssignment } from '../../api/assignmentApi';
 import { getStudentProfile } from '../../api/studentService';
@@ -76,24 +76,20 @@ export default function StudentAssignmentsView() {
     fetchData();
   };
 
-  // --- SORTING LOGIC ---
-  
-  // 1. Pending: Kothaga vachina assignments (Assigned Date) Top lo undali
   const pendingList = assignmentsList
     .filter(a => !a.submission || a.submission.status === 'REJECTED')
     .sort((a, b) => {
         const dateA = new Date(a.assignment.assignedDate).getTime();
         const dateB = new Date(b.assignment.assignedDate).getTime();
-        return dateB - dateA; // Descending (Newest First)
+        return dateB - dateA; 
     });
 
-  // 2. Completed: Eppudo submit chesinavi kakunda, Recent ga submit chesinavi Top lo undali
   const completedList = assignmentsList
     .filter(a => a.submission && a.submission.status !== 'REJECTED')
     .sort((a, b) => {
         const dateA = a.submission?.submittedDate ? new Date(a.submission.submittedDate).getTime() : 0;
         const dateB = b.submission?.submittedDate ? new Date(b.submission.submittedDate).getTime() : 0;
-        return dateB - dateA; // Descending (Recent First)
+        return dateB - dateA; 
     });
 
   const currentList = activeTab === 'PENDING' ? pendingList : completedList;

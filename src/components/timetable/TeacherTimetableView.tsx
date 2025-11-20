@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    View
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 import { getTeacherTimetable } from '../../api/timetableApi';
 import { useAuth } from '../../context/AuthContext';
@@ -16,14 +16,13 @@ export default function TeacherTimetableView() {
   const user = state.user;
   
   const [loading, setLoading] = useState(true);
-  const [timetable, setTimetable] = useState<any[]>([]); // List of Day Entries
+  const [timetable, setTimetable] = useState<any[]>([]); 
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = async () => {
     if (!user?.username) return;
     setLoading(true);
     try {
-      // Backend logic: Fetch periods where teacherId == current user
       const data = await getTeacherTimetable(user.username);
       if (data && data.weeklyTimetable) {
         setTimetable(data.weeklyTimetable);
@@ -77,7 +76,6 @@ export default function TeacherTimetableView() {
                     </View>
                     <View style={styles.detailsBox}>
                       <Text style={styles.subject}>{p.subjectName}</Text>
-                      {/* Show Class Name if available, Teacher teaches multiple classes */}
                       <View style={styles.classBadge}>
                         <Ionicons name="people-outline" size={12} color="#4B5563" />
                         <Text style={styles.classText}>Class {p.className || 'Section'}</Text> 

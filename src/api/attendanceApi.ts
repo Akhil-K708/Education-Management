@@ -1,21 +1,15 @@
 import { studentApi } from './axiosInstance';
 
-// ... existing interfaces ...
-
-// Add this to existing API file
 export const getDailyClassAttendance = async (classSectionId: string, date: string) => {
   try {
-    // Endpoint: /api/student/attendance/class/{classSectionId}/date/{date}
     const response = await studentApi.get<any[]>(`/attendance/class/${classSectionId}/date/${date}`);
-    return response.data; // Returns list of { studentId, status }
+    return response.data;
   } catch (error) {
     console.error("Error fetching daily attendance:", error);
     return [];
   }
 };
 
-// ... keep getTeacherClasses, getClassStudents, markAttendance as they are ...
-// (Previous codes need to remain here)
 export interface AttendanceStats {
   present: number;
   absent: number;

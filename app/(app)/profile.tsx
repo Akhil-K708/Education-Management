@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    useWindowDimensions,
-    View
+  ActivityIndicator,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View
 } from 'react-native';
 import { getStudentProfile } from '../../src/api/studentService';
 import { useAuth } from '../../src/context/AuthContext';
@@ -20,7 +20,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const user = state.user;
   const { width } = useWindowDimensions();
-  const isWeb = width > 768; // Web detection
+  const isWeb = width > 768; 
   
   const [profile, setProfile] = useState<StudentDTO | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,18 +77,14 @@ export default function ProfileScreen() {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* --- HEADER CARD --- */}
       <View style={[styles.headerCard, isWeb && styles.headerCardWeb]}>
         
-        {/* ================= WEB VIEW LAYOUT ================= */}
         {isWeb ? (
           <View style={styles.webContainer}>
             
-            {/* Left Part: Photo + Info */}
             <View style={styles.webLeftSection}>
               <View style={styles.profileImageContainerWeb}>
                 {profile.profileImageUrl ? (
-                  // Webలో సైజు పెరగడానికి style మార్చాం
                   <Image 
                     source={{ uri: profile.profileImageUrl }} 
                     style={[styles.profileImage, styles.profileImageWeb]} 
@@ -100,7 +96,6 @@ export default function ProfileScreen() {
                 )}
               </View>
               
-              {/* Spacing పెంచాం */}
               <View style={styles.webIdentityInfo}>
                 <Text style={styles.webLabel}>name:</Text>
                 <Text style={styles.nameTextWeb}>{profile.fullName}</Text>
@@ -113,7 +108,6 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {/* Right Part: ID/Roll/Mobile */}
             <View style={styles.webRightSection}>
               <View style={styles.webInfoRow}>
                 <Text style={styles.webInfoLabel}>student id:</Text>
@@ -134,7 +128,6 @@ export default function ProfileScreen() {
           </View>
         ) : (
           
-          /* ================= MOBILE VIEW LAYOUT (UNCHANGED) ================= */
           <>
             <View style={styles.profileImageContainer}>
               {profile.profileImageUrl ? (
@@ -163,7 +156,6 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      {/* --- DETAILS GRID (Unchanged) --- */}
       <View style={[styles.detailsContainer, isWeb && styles.detailsContainerWeb]}>
         <View style={[styles.sectionCard, isWeb && styles.sectionCardWeb]}>
           <Text style={styles.sectionTitle}>Academic Details</Text>
@@ -207,7 +199,6 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { color: '#EF4444', fontSize: 16 },
   
-  // Header Styles
   headerCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -223,13 +214,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   
-  // --- WEB LAYOUT STYLES ---
   webContainer: {
     flexDirection: 'row',
     width: '100%',
   },
   
-  // Left Section
   webLeftSection: {
     flex: 0.65,
     flexDirection: 'row',
@@ -239,14 +228,12 @@ const styles = StyleSheet.create({
     paddingRight: 20,
   },
   
-  // --- Image Styles ---
   profileImageContainer: {
     marginBottom: 16,
     shadowColor: '#F97316', shadowOpacity: 0.2, shadowRadius: 8, elevation: 5,
   },
   profileImageContainerWeb: {
     shadowColor: '#F97316', shadowOpacity: 0.2, shadowRadius: 8, elevation: 5,
-    // No bottom margin needed for web since it's a row
   },
   profileImage: {
     width: 100, 
@@ -255,10 +242,10 @@ const styles = StyleSheet.create({
     borderWidth: 3, 
     borderColor: '#F97316',
   },
-  // New Web Specific Image Size (Bigger)
+
   profileImageWeb: {
-    width: 140,  // Increased size
-    height: 140, // Increased size
+    width: 140,  
+    height: 140, 
     borderRadius: 70,
     borderWidth: 4,
   },
@@ -272,17 +259,15 @@ const styles = StyleSheet.create({
     borderWidth: 3, 
     borderColor: '#E5E7EB',
   },
-  // New Web Specific Placeholder Size
   placeholderImageWeb: {
     width: 140,
     height: 140,
     borderRadius: 70,
   },
 
-  // --- Info Text Styles ---
   webIdentityInfo: {
     justifyContent: 'center',
-    marginLeft: 40, // Increased spacing (Gap) from the image
+    marginLeft: 40,
   },
   webLabel: {
     fontSize: 13,
@@ -291,11 +276,10 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     textTransform: 'lowercase',
   },
-  nameTextWeb: { fontSize: 24, fontWeight: 'bold', color: '#111827' }, // Slightly bigger font
+  nameTextWeb: { fontSize: 24, fontWeight: 'bold', color: '#111827' },
   classTextWeb: { fontSize: 18, fontWeight: '500', color: '#111827' },
   fatherNameText: { fontSize: 18, fontWeight: '500', color: '#111827' },
 
-  // Right Section
   webRightSection: {
     flex: 0.35,
     justifyContent: 'center',
@@ -317,7 +301,6 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
 
-  // --- MOBILE STYLES (Unchanged) ---
   headerInfo: {
     alignItems: 'center',
   },
@@ -343,7 +326,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // --- GRID STYLES ---
   detailsContainer: { flexDirection: 'column' },
   detailsContainerWeb: {
     flexDirection: 'row',

@@ -1,10 +1,8 @@
-// src/types/student.ts
-
 export interface StudentDTO {
   studentId: string;
   admissionNumber: string;
   fullName: string;
-  dateOfBirth: string; // LocalDate వస్తుంది కాబట్టి string
+  dateOfBirth: string; 
   gender: string;
   bloodGroup: string;
   nationality: string;
@@ -12,7 +10,6 @@ export interface StudentDTO {
   category: string;
   aadhaarNumber: string;
 
-  // From ClassSection mapping
   classSectionId: string;
   grade: string;
   section: string;

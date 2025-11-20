@@ -9,7 +9,6 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-// 1. useAuth ను ఇంపోర్ట్ చేయండి
 import { useAuth } from '../../context/AuthContext';
 
 interface NavbarProps {
@@ -19,24 +18,18 @@ interface NavbarProps {
 export const Navbar = ({ onMenuPress }: NavbarProps) => {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
-
-  // 2. AuthContext నుండి యూజర్ డేటాను తీసుకోండి
   const { state } = useAuth();
   const user = state.user;
 
   return (
     <View style={styles.navbar}>
-      {/* 1. ఎడమ వైపు */}
       <View style={styles.left}>
-        {/* మెనూ బటన్ (వెబ్ & మొబైల్ రెండింటికీ) */}
         <TouchableOpacity onPress={onMenuPress} style={styles.menuButton}>
           <Ionicons name="menu" size={28} color="#1F2937" />
         </TouchableOpacity>
 
-        {/* లోగో */}
         <Text style={styles.logoText}>Educatio</Text>
 
-        {/* యూజర్ పేరు & రోల్ (వెబ్‌లో మాత్రమే) */}
         {!isMobile && (
           <View style={styles.userInfo}>
             <Text style={styles.usernameText} numberOfLines={1}>
@@ -49,7 +42,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
         )}
       </View>
 
-      {/* 2. మధ్యలో (వెబ్‌లో మాత్రమే) */}
       {!isMobile && (
         <View style={styles.center}>
           <Ionicons
@@ -66,7 +58,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
         </View>
       )}
 
-      {/* 3. కుడి వైపు */}
       <View style={styles.right}>
         <TouchableOpacity style={styles.iconButton}>
           <Ionicons name="notifications-outline" size={24} color="#374151" />
@@ -82,7 +73,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
   );
 };
 
-// 3. స్టైల్స్‌ను అప్‌డేట్ చేయండి
 const styles = StyleSheet.create({
   navbar: {
     flexDirection: 'row',
@@ -96,7 +86,7 @@ const styles = StyleSheet.create({
     minHeight: 60,
   },
   left: {
-    flex: 1.5, // వెబ్‌లో యూజర్ పేరు కోసం కొంచెం ఎక్కువ స్థలం
+    flex: 1.5, 
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -125,13 +115,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#111827',
   },
-  // --- కొత్తగా జోడించిన స్టైల్స్ ---
+ 
   userInfo: {
     marginLeft: 10,
     paddingLeft: 10,
     borderLeftWidth: 1,
     borderLeftColor: '#E5E7EB',
-    flexShrink: 1, // పేరు పొడవుగా ఉంటే కుదించుకుంటుంది
+    flexShrink: 1, 
   },
   usernameText: {
     fontSize: 14,
@@ -142,7 +132,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
   },
-  // --- ---
   searchIcon: {
     marginRight: 8,
   },

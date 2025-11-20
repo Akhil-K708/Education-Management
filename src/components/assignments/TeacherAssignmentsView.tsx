@@ -1,21 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import {
-    createAssignment,
-    getAssignmentSubmissions,
-    getTeacherAssignments,
-    reviewSubmission
+  createAssignment,
+  getAssignmentSubmissions,
+  getTeacherAssignments,
+  reviewSubmission
 } from '../../api/assignmentApi';
 import { studentApi } from '../../api/axiosInstance';
 import { useAuth } from '../../context/AuthContext';
@@ -47,9 +47,6 @@ export default function TeacherAssignmentsView() {
     try {
       setLoading(true);
       const data = await getTeacherAssignments(user.username);
-      
-      // --- SORTING LOGIC (NEWEST FIRST) ---
-      // Assigned Date prakaram reverse sort chesthunnam
       const sortedData = data.sort((a, b) => {
          const dateA = new Date(a.assignedDate).getTime();
          const dateB = new Date(b.assignedDate).getTime();
@@ -139,7 +136,6 @@ export default function TeacherAssignmentsView() {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        {/* Title changed to "Assignments" and added flex: 1 to avoid overlap */}
         <Text style={styles.pageTitle} numberOfLines={1}>Assignments</Text>
         <TouchableOpacity style={styles.addButton} onPress={() => setCreateModalVisible(true)}>
           <Ionicons name="add" size={24} color="#FFF" />
@@ -279,17 +275,17 @@ const styles = StyleSheet.create({
     fontSize: 24, 
     fontWeight: 'bold', 
     color: '#111827', 
-    flex: 1, // ADDED: This fixes the text cut-off issue on mobile
+    flex: 1, 
     marginRight: 10
   },
   addButton: { 
     flexDirection: 'row', 
     backgroundColor: '#F97316', 
     paddingVertical: 8, 
-    paddingHorizontal: 12, // Adjusted padding to fit better
+    paddingHorizontal: 12, 
     borderRadius: 8, 
     alignItems: 'center',
-    flexShrink: 0 // Prevents button from shrinking
+    flexShrink: 0
   },
   addButtonText: { color: '#FFF', fontWeight: 'bold', marginLeft: 4 },
   
@@ -303,7 +299,6 @@ const styles = StyleSheet.create({
   viewSubBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   viewSubText: { color: '#2563EB', fontWeight: '600' },
 
-  // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', padding: 20, borderRadius: 12 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
@@ -319,7 +314,6 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: '#F97316', padding: 10, borderRadius: 8 },
   saveText: { color: '#FFF', fontWeight: 'bold' },
 
-  // Submissions Screen
   fullScreenModal: { flex: 1, backgroundColor: '#F3F4F6' },
   fsHeader: { flexDirection: 'row', alignItems: 'center', padding: 20, backgroundColor: '#FFF', borderBottomWidth: 1, borderColor: '#E5E7EB' },
   fsTitle: { fontSize: 20, fontWeight: 'bold', marginLeft: 16 },

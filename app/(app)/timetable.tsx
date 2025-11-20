@@ -17,7 +17,6 @@ export default function TimetableScreen() {
     );
   }
 
-  // --- LOGIC: Role Based View ---
   if (user.role === 'ADMIN') {
       return <AdminTimetableView />;
   } 

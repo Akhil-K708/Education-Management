@@ -22,10 +22,9 @@ export default function StudentAttendanceView() {
   const [markedDates, setMarkedDates] = useState<any>({});
   const [selectedDateInfo, setSelectedDateInfo] = useState<{date: string, status: string} | null>(null);
 
-  // Current Month Tracking
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
-  const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1); // 1-12
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1); 
 
   const fetchData = async (year: number, month: number) => {
     if (!user?.username) return;
@@ -54,7 +53,7 @@ export default function StudentAttendanceView() {
   const processCalendarDates = (logs: any[]) => {
     const marks: any = {};
     logs.forEach(log => {
-      let color = '#E5E7EB'; // Default
+      let color = '#E5E7EB'; 
       let status = log.status.toUpperCase();
 
       if (status === 'PRESENT' || status === 'P') color = '#10B981';

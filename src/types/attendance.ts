@@ -1,5 +1,3 @@
-// src/types/attendance.ts
-
 export interface AttendanceStats {
   totalWorkingDays: number;
   present: number;
@@ -9,9 +7,9 @@ export interface AttendanceStats {
 }
 
 export interface AttendanceLog {
-  date: string; // YYYY-MM-DD
+  date: string; 
   status: 'PRESENT' | 'ABSENT' | 'HOLIDAY';
-  holidayReason?: string; // e.g., "Diwali", "Exam Preparation", "Sunday"
+  holidayReason?: string; 
 }
 
 export interface AttendanceData {

@@ -1,7 +1,6 @@
 import { StudentWeeklyTimetableDTO } from '../types/timetable';
 import { studentApi } from './axiosInstance';
 
-// --- SHARED ---
 export const getStudentTimetable = async (studentId: string): Promise<StudentWeeklyTimetableDTO> => {
   try {
     const response = await studentApi.get<StudentWeeklyTimetableDTO>(`/${studentId}/weekly-timetable`);
@@ -12,16 +11,9 @@ export const getStudentTimetable = async (studentId: string): Promise<StudentWee
   }
 };
 
-// --- TEACHER ---
-// Note: Backend should have this endpoint. If not, ensure backend adds it.
-// Assuming endpoint: /api/student/teacher/{teacherId}/timetable
 export const getTeacherTimetable = async (teacherId: string) => {
   try {
-    // Assuming the structure is similar to StudentWeeklyTimetableDTO or list of periods
     const response = await studentApi.get(`/teacher/${teacherId}/weekly-timetable`); 
-    // NOTE: If this specific endpoint doesn't exist in your current backend, 
-    // you might need to ask backend dev to add `getTeacherWeeklyTimetable`.
-    // For now, I'm assuming it exists or follows similar pattern.
     return response.data;
   } catch (error) {
     console.error("Error fetching teacher timetable:", error);
@@ -29,7 +21,6 @@ export const getTeacherTimetable = async (teacherId: string) => {
   }
 };
 
-// --- ADMIN HELPER FUNCTIONS ---
 export const getAllClasses = async () => {
   const response = await studentApi.get('/class-sections');
   return response.data;

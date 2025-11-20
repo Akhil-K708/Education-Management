@@ -21,27 +21,20 @@ import {
     saveTimetable
 } from '../../api/timetableApi';
 
-// Days of the week
 const DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
 export default function AdminTimetableView() {
   const [loading, setLoading] = useState(false);
-  
-  // Dropdown Data
   const [classes, setClasses] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [teachers, setTeachers] = useState<any[]>([]);
   
-  // Selections
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [activeDay, setActiveDay] = useState<string>('MONDAY');
   
-  // Timetable State (Local)
-  // Stores all periods. Filtered by day when rendering.
   const [timetablePeriods, setTimetablePeriods] = useState<any[]>([]);
   const [isExisting, setIsExisting] = useState(false);
 
-  // Modal State
   const [modalVisible, setModalVisible] = useState(false);
   const [newPeriod, setNewPeriod] = useState({
       startTime: '09:00',
@@ -63,7 +56,6 @@ export default function AdminTimetableView() {
       } catch(e) { console.error(e); }
   };
 
-  // Load Timetable when Class Changes
   const handleClassChange = async (classId: string) => {
       setSelectedClass(classId);
       setLoading(true);
@@ -71,25 +63,22 @@ export default function AdminTimetableView() {
       setIsExisting(false);
 
       try {
-          // 1. Find a student in this class
           const studentId = await getStudentIdByClass(classId);
           
           if (studentId) {
-              // 2. Get existing timetable
               const data = await getStudentTimetable(studentId);
               if (data && data.weeklyTimetable) {
-                  // Flatten structure: DayEntry[] -> Flat Period[] with day property
                   const flatList: any[] = [];
                   data.weeklyTimetable.forEach(dayEntry => {
                       dayEntry.periods.forEach(p => {
                           flatList.push({
                               day: dayEntry.day,
-                              startTime: convertTime12to24(p.startTime), // Backend needs HH:mm
+                              startTime: convertTime12to24(p.startTime), 
                               endTime: convertTime12to24(p.endTime),
                               subjectId: p.subjectId,
                               teacherId: p.teacherId,
-                              subjectName: p.subjectName, // For display
-                              teacherName: p.teacherName  // For display
+                              subjectName: p.subjectName, 
+                              teacherName: p.teacherName  
                           });
                       });
                   });
