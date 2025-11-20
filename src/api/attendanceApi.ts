@@ -1,74 +1,78 @@
-// src/api/attendanceApi.ts
+import { studentApi } from './axiosInstance';
 
-import { AttendanceData, AttendanceLog } from "../types/attendance";
+// ... existing interfaces ...
 
-// Mock Holidays Data (మనం కావాల్సినన్ని యాడ్ చేసుకోవచ్చు)
-const SPECIAL_HOLIDAYS: Record<string, string> = {
-  '2025-11-01': 'State Formation Day',
-  '2025-11-14': "Children's Day",
-  '2025-11-20': 'Exam Preparation Holiday', // Teacher Declared
-  '2025-11-21': 'Exam Preparation Holiday', // Teacher Declared
-};
-
-const generateMockLogs = (): AttendanceLog[] => {
-  const logs: AttendanceLog[] = [];
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth(); 
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const dayOfWeek = new Date(year, month, d).getDay(); // 0=Sun
-
-    let status: 'PRESENT' | 'ABSENT' | 'HOLIDAY' = 'PRESENT';
-    let reason = '';
-
-    // 1. Check for Special Holidays first
-    if (SPECIAL_HOLIDAYS[dateString]) {
-        status = 'HOLIDAY';
-        reason = SPECIAL_HOLIDAYS[dateString];
-    } 
-    // 2. Check for Sundays
-    else if (dayOfWeek === 0) {
-        status = 'HOLIDAY';
-        reason = 'Sunday';
-    } 
-    // 3. Random Absents for demo
-    else if (d === 5 || d === 18) {
-       status = 'ABSENT';
-    }
-
-    // Don't mark future dates as Present/Absent (Keep them empty or Handle logic)
-    // For this mock, we return data for the whole month to show the calendar properly
-    logs.push({ date: dateString, status, holidayReason: reason });
+// Add this to existing API file
+export const getDailyClassAttendance = async (classSectionId: string, date: string) => {
+  try {
+    // Endpoint: /api/student/attendance/class/{classSectionId}/date/{date}
+    const response = await studentApi.get<any[]>(`/attendance/class/${classSectionId}/date/${date}`);
+    return response.data; // Returns list of { studentId, status }
+  } catch (error) {
+    console.error("Error fetching daily attendance:", error);
+    return [];
   }
-  return logs;
 };
 
-export const getStudentAttendance = async (studentId: string): Promise<AttendanceData> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const logs = generateMockLogs();
-      
-      // Calculate Stats
-      const present = logs.filter(l => l.status === 'PRESENT').length;
-      const absent = logs.filter(l => l.status === 'ABSENT').length;
-      const holidays = logs.filter(l => l.status === 'HOLIDAY').length;
-      const totalWorking = present + absent;
-      const percentage = totalWorking > 0 ? (present / totalWorking) * 100 : 0;
-
-      resolve({
-        studentId,
-        stats: {
-          totalWorkingDays: totalWorking,
-          present,
-          absent,
-          holidays,
-          percentage: parseFloat(percentage.toFixed(1))
-        },
-        logs
-      });
-    }, 800); 
-  });
+// ... keep getTeacherClasses, getClassStudents, markAttendance as they are ...
+// (Previous codes need to remain here)
+export interface AttendanceStats {
+  present: number;
+  absent: number;
+  holidays: number;
+  percentage: number;
+}
+export interface DailyRecord {
+  date: string; 
+  status: string; 
+}
+export interface StudentAttendanceViewDTO {
+  studentId: string;
+  present: number;
+  absent: number;
+  holidays: number;
+  percentage: number;
+  dailyRecords: DailyRecord[];
+}
+export const getStudentAttendance = async (studentId: string, year: number, month: number): Promise<StudentAttendanceViewDTO> => {
+  try {
+    const response = await studentApi.get<StudentAttendanceViewDTO>(`/attendance/${studentId}/${year}/${month}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching student attendance:", error);
+    throw error;
+  }
+};
+export const getTeacherClasses = async (teacherId: string) => {
+  try {
+    const response = await studentApi.get(`/teacher/assigned-classes/${teacherId}`);
+    return response.data; 
+  } catch (error) {
+    console.error("Error fetching teacher classes:", error);
+    return [];
+  }
+};
+export const getClassStudents = async (classSectionId: string) => {
+  try {
+    const response = await studentApi.get(`/class/${classSectionId}/students`);
+    return response.data; 
+  } catch (error) {
+    console.error("Error fetching class students:", error);
+    return [];
+  }
+};
+export const markAttendance = async (
+    classSectionId: string,
+    teacherId: string,
+    date: string, 
+    entries: { studentId: string; status: string }[]
+) => {
+  try {
+    const payload = { classSectionId, date, entries };
+    const response = await studentApi.post(`/attendance/mark/${classSectionId}/${teacherId}`, payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error marking attendance:", error);
+    throw error;
+  }
 };
