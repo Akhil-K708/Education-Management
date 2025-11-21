@@ -2,22 +2,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  useWindowDimensions
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from 'react-native';
-import { ClassSectionDTO, createClassSection, deleteClassSection, getAllClassSections } from '../../src/api/adminApi';
+import { createSubject, deleteSubject, getAllSubjects, SubjectDTO } from '../../src/api/adminApi';
 import { useAuth } from '../../src/context/AuthContext';
 
-export default function ClassScreen() {
+export default function SubjectsScreen() {
   const { state } = useAuth();
   const router = useRouter();
   const user = state.user;
@@ -25,24 +25,22 @@ export default function ClassScreen() {
   // Responsive Logic
   const { width } = useWindowDimensions();
   const isWeb = width > 768;
-  const numColumns = isWeb ? 3 : 1; // Web: 3 cols, Mobile: 1 col
+  const numColumns = isWeb ? 3 : 1;
 
   const [loading, setLoading] = useState(true);
-  const [classes, setClasses] = useState<ClassSectionDTO[]>([]);
+  const [subjects, setSubjects] = useState<SubjectDTO[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
-  const [className, setClassName] = useState('');
-  const [section, setSection] = useState('');
-  const [academicYear, setAcademicYear] = useState('2025-2026');
-  const [capacity, setCapacity] = useState('40');
+  const [subjectName, setSubjectName] = useState('');
+  const [subjectCode, setSubjectCode] = useState('');
 
-  const fetchClasses = async () => {
+  const fetchSubjects = async () => {
     setLoading(true);
     try {
-      const data = await getAllClassSections();
-      setClasses(data);
+      const data = await getAllSubjects();
+      setSubjects(data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -58,29 +56,29 @@ export default function ClassScreen() {
         }, 0);
         return () => clearTimeout(timer);
     }
-    fetchClasses();
+    fetchSubjects();
   }, [user, state.status]);
 
   const handleCreate = async () => {
-    if (!className || !section || !academicYear) {
+    if (!subjectName || !subjectCode) {
       Alert.alert("Error", "Please fill all required fields");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await createClassSection({
-        className,
-        section,
-        academicYear,
-        capacity: parseInt(capacity)
+      await createSubject({
+        subjectName,
+        subjectCode,
+        active: true
       });
-      Alert.alert("Success", "Class Created Successfully!");
+      Alert.alert("Success", "Subject Created Successfully!");
       setModalVisible(false);
-      resetForm();
-      fetchClasses();
+      setSubjectName('');
+      setSubjectCode('');
+      fetchSubjects();
     } catch (e: any) {
-      Alert.alert("Error", e.response?.data?.message || "Failed to create class");
+      Alert.alert("Error", e.response?.data?.message || "Failed to create subject");
     } finally {
       setIsSubmitting(false);
     }
@@ -88,11 +86,11 @@ export default function ClassScreen() {
 
   const handleDelete = async (id: string) => {
     if (Platform.OS === 'web') {
-      if (confirm("Are you sure you want to delete this class?")) {
+      if (confirm("Are you sure you want to delete this subject?")) {
         await processDelete(id);
       }
     } else {
-      Alert.alert("Confirm", "Delete this class?", [
+      Alert.alert("Confirm", "Delete this subject?", [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: () => processDelete(id) }
       ]);
@@ -101,43 +99,29 @@ export default function ClassScreen() {
 
   const processDelete = async (id: string) => {
     try {
-      await deleteClassSection(id);
-      fetchClasses();
+      await deleteSubject(id);
+      fetchSubjects();
     } catch (e) {
-      Alert.alert("Error", "Failed to delete class");
+      Alert.alert("Error", "Failed to delete subject");
     }
   };
 
-  const resetForm = () => {
-    setClassName('');
-    setSection('');
-    setCapacity('40');
-  };
-
-  if (state.status === 'loading' || loading && classes.length === 0) {
+  if (state.status === 'loading' || loading && subjects.length === 0) {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
   }
 
-  // --- RENDER ITEM LOGIC ---
-  const renderItem = ({ item }: { item: ClassSectionDTO }) => (
-    // Outer Container: Takes exactly 33.33% width on Web
+  // --- RENDER ITEM ---
+  const renderItem = ({ item }: { item: SubjectDTO }) => (
     <View style={[styles.itemContainer, isWeb && styles.itemContainerWeb]}>
-        {/* Inner Card: This is the visible card */}
         <View style={styles.card}>
             <View style={styles.cardIcon}>
-                <Ionicons name="easel-outline" size={24} color="#FFF" />
+                <Ionicons name="book" size={24} color="#FFF" />
             </View>
             <View style={styles.cardContent}>
-                <Text style={styles.className}>{item.className} - {item.section}</Text>
-                <Text style={styles.classDetails}>Year: {item.academicYear}</Text>
-                <Text style={styles.classDetails}>
-                Strength: {item.currentStrength || 0} / {item.capacity}
-                </Text>
-                <Text style={styles.teacherText}>
-                Teacher: {item.classTeacherName || 'Not Assigned'}
-                </Text>
+                <Text style={styles.subjectName}>{item.subjectName}</Text>
+                <Text style={styles.subjectCode}>Code: {item.subjectCode}</Text>
             </View>
-            <TouchableOpacity onPress={() => handleDelete(item.classSectionId!)} style={styles.deleteBtn}>
+            <TouchableOpacity onPress={() => handleDelete(item.subjectId!)} style={styles.deleteBtn}>
                 <Ionicons name="trash-outline" size={20} color="#EF4444" />
             </TouchableOpacity>
         </View>
@@ -147,29 +131,27 @@ export default function ClassScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.headerRow, !isWeb && styles.headerRowMobile]}>
-        <Text style={styles.title}>Class Management</Text>
+        <Text style={styles.title}>Subject Management</Text>
         <TouchableOpacity style={[styles.addBtn, !isWeb && styles.addBtnMobile]} onPress={() => setModalVisible(true)}>
           <Ionicons name="add" size={20} color="#FFF" />
-          <Text style={styles.addBtnText}>Add Class</Text>
+          <Text style={styles.addBtnText}>Add Subject</Text>
         </TouchableOpacity>
       </View>
 
       <FlatList
-        data={classes}
-        keyExtractor={(item) => item.classSectionId || Math.random().toString()}
+        data={subjects}
+        keyExtractor={(item) => item.subjectId || Math.random().toString()}
         renderItem={renderItem}
         contentContainerStyle={{ paddingBottom: 20 }}
         
-        // Grid Config
         key={isWeb ? 'web' : 'mobile'}
         numColumns={numColumns}
         
-        // Remove gap here, handled by itemContainer padding
-        columnWrapperStyle={isWeb ? null : undefined} 
+        columnWrapperStyle={isWeb ? null : undefined}
         
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No classes found. Create one!</Text>
+            <Text style={styles.emptyText}>No subjects found.</Text>
           </View>
         }
       />
@@ -178,43 +160,27 @@ export default function ClassScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create New Class</Text>
+              <Text style={styles.modalTitle}>Create New Subject</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>Class Name (Grade)</Text>
+            <Text style={styles.label}>Subject Name</Text>
             <TextInput 
               style={styles.input} 
-              placeholder="e.g. 10" 
-              value={className}
-              onChangeText={setClassName}
+              placeholder="e.g. Mathematics" 
+              value={subjectName}
+              onChangeText={setSubjectName}
             />
 
-            <Text style={styles.label}>Section</Text>
+            <Text style={styles.label}>Subject Code</Text>
             <TextInput 
               style={styles.input} 
-              placeholder="e.g. A" 
-              value={section}
-              onChangeText={setSection}
-            />
-
-            <Text style={styles.label}>Academic Year</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="e.g. 2025-2026" 
-              value={academicYear}
-              onChangeText={setAcademicYear}
-            />
-
-            <Text style={styles.label}>Capacity</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="e.g. 40" 
-              keyboardType="numeric"
-              value={capacity}
-              onChangeText={setCapacity}
+              placeholder="e.g. MATH101" 
+              value={subjectCode}
+              onChangeText={setSubjectCode}
+              autoCapitalize="characters"
             />
 
             <TouchableOpacity 
@@ -225,7 +191,7 @@ export default function ClassScreen() {
               {isSubmitting ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
-                <Text style={styles.submitBtnText}>Create Class</Text>
+                <Text style={styles.submitBtnText}>Create Subject</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -239,42 +205,38 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#F3F4F6' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
-  // Header
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   headerRowMobile: { flexDirection: 'column', alignItems: 'flex-start', gap: 15 },
   
   title: { fontSize: 24, fontWeight: 'bold', color: '#111827' },
-  addBtn: { flexDirection: 'row', backgroundColor: '#F97316', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  addBtn: { flexDirection: 'row', backgroundColor: '#8B5CF6', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   addBtnMobile: { alignSelf: 'flex-start' },
   addBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 6 },
   
-  // --- GRID SYSTEM STYLES ---
+  // --- GRID STYLES ---
   itemContainer: {
-    width: '100%', // Mobile default
+    width: '100%',
     marginBottom: 16,
   },
   itemContainerWeb: {
-    width: '33.33%', // Exactly 1/3rd of screen
-    paddingHorizontal: 10, // Creates gap between cards
+    width: '33.33%',
+    paddingHorizontal: 10,
     marginBottom: 20,
   },
-  
+
   card: { 
-    flex: 1,
+    flex: 1, 
     backgroundColor: '#FFF', 
     borderRadius: 12, 
     padding: 16, 
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
-    // minWidth logic removed to rely on container width
   },
-
-  cardIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  cardIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   cardContent: { flex: 1 },
-  className: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
-  classDetails: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  teacherText: { fontSize: 13, color: '#059669', marginTop: 4, fontWeight: '500' },
+  subjectName: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
+  subjectCode: { fontSize: 13, color: '#6B7280', marginTop: 2, fontWeight: '600' },
   deleteBtn: { padding: 8 },
 
   emptyState: { alignItems: 'center', marginTop: 50 },
@@ -286,6 +248,6 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
   label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6 },
   input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 16, backgroundColor: '#F9FAFB' },
-  submitBtn: { backgroundColor: '#F97316', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  submitBtn: { backgroundColor: '#8B5CF6', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 10 },
   submitBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
 });

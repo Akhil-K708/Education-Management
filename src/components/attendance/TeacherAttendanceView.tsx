@@ -16,6 +16,35 @@ import {
 import { getClassStudents, getDailyClassAttendance, getStudentAttendance, getTeacherClasses, markAttendance } from '../../api/attendanceApi';
 import { useAuth } from '../../context/AuthContext';
 
+// --- WEB INPUT COMPONENT ---
+const WebInput = ({ value, onChange }: { value: Date, onChange: (d: Date)=>void }) => {
+    return React.createElement('input', {
+       type: 'date',
+       value: value.toISOString().split('T')[0],
+       style: {
+           border: '1px solid #FED7AA', 
+           borderRadius: '12px',
+           padding: '12px 16px',
+           backgroundColor: '#FFF7ED', 
+           width: '100%',
+           height: '55px',
+           fontSize: '18px',
+           fontWeight: 'bold',
+           color: '#C2410C', 
+           outline: 'none',
+           boxSizing: 'border-box',
+           fontFamily: 'System',
+           cursor: 'pointer'
+       },
+       onChange: (e: any) => {
+           const val = e.target.value;
+           if(val) {
+               onChange(new Date(val));
+           }
+       }
+    });
+ };
+
 export default function TeacherAttendanceView() {
   const { state } = useAuth();
   const user = state.user;
@@ -25,6 +54,7 @@ export default function TeacherAttendanceView() {
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [students, setStudents] = useState<any[]>([]);
   
+  // Logic Fix: Always store explicit 'PRESENT' or 'ABSENT'
   const [attendanceMap, setAttendanceMap] = useState<Record<string, string>>({}); 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -37,20 +67,25 @@ export default function TeacherAttendanceView() {
     fetchClasses();
   }, [user]);
 
+  // Re-fetch attendance when Class, Date, OR Student list changes
   useEffect(() => {
-    if (selectedClass && selectedDate) {
+    if (selectedClass && selectedDate && students.length > 0) {
         fetchExistingAttendance();
     }
-  }, [selectedDate, selectedClass]);
+  }, [selectedDate, selectedClass, students]);
 
   const fetchClasses = async () => {
     if (!user?.username) return;
     setLoading(true);
-    const data = await getTeacherClasses(user.username);
-    setClasses(data);
-    if (data.length > 0) {
-        handleClassSelect(data[0].classSectionId);
-    } else {
+    try {
+        const data = await getTeacherClasses(user.username);
+        setClasses(data);
+        if (data.length > 0) {
+            handleClassSelect(data[0].classSectionId);
+        } else {
+            setLoading(false);
+        }
+    } catch (e) {
         setLoading(false);
     }
   };
@@ -61,23 +96,30 @@ export default function TeacherAttendanceView() {
         setLoading(true);
         const studentList = await getClassStudents(classId);
         setStudents(studentList);
-        setAttendanceMap({});
-      } catch(e) { console.error(e); }
-      finally { setLoading(false); }
+        // Note: attendanceMap will be built by the useEffect triggered by students change
+      } catch(e) { console.error(e); setLoading(false); }
   };
 
   const fetchExistingAttendance = async () => {
       if(!selectedClass) return;
-      setLoading(true);
+      
+      // Don't show full loading, just update state quietly or small loader if needed
+      // Building initial map with ALL PRESENT
+      const newMap: Record<string, string> = {};
+      students.forEach(s => {
+          newMap[s.studentId] = 'PRESENT';
+      });
+
       try {
         const formattedDate = selectedDate.toISOString().split('T')[0];
         const existingRecords = await getDailyClassAttendance(selectedClass, formattedDate);
         
-        const newMap: any = {};
-        
         if (existingRecords && existingRecords.length > 0) {
             existingRecords.forEach((rec: any) => {
-                newMap[rec.studentId] = rec.status;
+                // Update only valid statuses
+                if (rec.status === 'ABSENT') {
+                    newMap[rec.studentId] = 'ABSENT';
+                }
             });
         } 
         setAttendanceMap(newMap);
@@ -89,16 +131,12 @@ export default function TeacherAttendanceView() {
       }
   };
 
+  // --- BUG FIX: Simple Toggle Logic ---
   const toggleStatus = (studentId: string) => {
-      setAttendanceMap(prev => {
-          const currentStatus = prev[studentId] === 'ABSENT' ? 'ABSENT' : 'PRESENT';
-          
-          if (currentStatus === 'ABSENT') {
-              return { ...prev, [studentId]: 'PRESENT' };
-          } else {
-              return { ...prev, [studentId]: 'ABSENT' };
-          }
-      });
+      setAttendanceMap(prev => ({
+          ...prev,
+          [studentId]: prev[studentId] === 'ABSENT' ? 'PRESENT' : 'ABSENT'
+      }));
   };
 
   const handleSubmit = async () => {
@@ -108,7 +146,8 @@ export default function TeacherAttendanceView() {
           const formattedDate = selectedDate.toISOString().split('T')[0];
           const entries = students.map(s => ({
               studentId: s.studentId,
-              status: attendanceMap[s.studentId] === 'ABSENT' ? 'ABSENT' : 'PRESENT'
+              // Ensure we send the exact status from map
+              status: attendanceMap[s.studentId] || 'PRESENT'
           }));
 
           await markAttendance(selectedClass, user?.username!, formattedDate, entries);
@@ -141,29 +180,6 @@ export default function TeacherAttendanceView() {
       if(date) setSelectedDate(date);
   };
 
-  const WebDatePicker = () => {
-    if (Platform.OS !== 'web') return null;
-    return React.createElement('input', {
-       type: 'date',
-       value: selectedDate.toISOString().split('T')[0],
-       style: {
-           position: 'absolute',
-           top: 0,
-           left: 0,
-           width: '100%',
-           height: '100%',
-           opacity: 0, 
-           cursor: 'pointer',
-           zIndex: 50, 
-           margin: 0,
-           padding: 0
-       },
-       onChange: (e: any) => {
-           if(e.target.value) setSelectedDate(new Date(e.target.value));
-       }
-    });
-  };
-
   if (loading && classes.length === 0) return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316"/></View>;
 
   const absentCount = Object.values(attendanceMap).filter(s => s === 'ABSENT').length;
@@ -174,40 +190,40 @@ export default function TeacherAttendanceView() {
         <Text style={styles.title}>Mark Attendance</Text>
         
         {/* DATE SELECTOR */}
-        <View style={styles.dateCardWrapper}>
-            <View style={styles.dateCard}>
-                <View>
-                    <Text style={styles.dateLabel}>Select Date:</Text>
-                    <View style={styles.dateRow}>
-                        <Text style={styles.dateText}>{selectedDate.toISOString().split('T')[0]}</Text>
-                        <Ionicons name="chevron-down" size={20} color="#C2410C" />
-                    </View>
-                </View>
-                <View style={styles.calendarIconBox}>
-                    <Ionicons name="calendar" size={24} color="#FFF" />
-                </View>
+        {Platform.OS === 'web' ? (
+            <View style={{ marginBottom: 20 }}>
+                <Text style={styles.dateLabel}>SELECT DATE:</Text>
+                <WebInput value={selectedDate} onChange={setSelectedDate} />
             </View>
-            
-            <WebDatePicker />
+        ) : (
+            <View style={styles.dateCardWrapper}>
+                <TouchableOpacity 
+                    style={styles.dateCard} 
+                    onPress={() => setShowDatePicker(true)}
+                    activeOpacity={0.8}
+                >
+                    <View>
+                        <Text style={styles.dateLabel}>Select Date:</Text>
+                        <View style={styles.dateRow}>
+                            <Text style={styles.dateText}>{selectedDate.toISOString().split('T')[0]}</Text>
+                            <Ionicons name="chevron-down" size={20} color="#C2410C" />
+                        </View>
+                    </View>
+                    <View style={styles.calendarIconBox}>
+                        <Ionicons name="calendar" size={24} color="#FFF" />
+                    </View>
+                </TouchableOpacity>
 
-            {/* Mobile Touchable Overlay */}
-            {Platform.OS !== 'web' && (
-                 <TouchableOpacity 
-                    style={styles.mobileDateTouch} 
-                    onPress={() => setShowDatePicker(true)} 
-                 />
-            )}
-        </View>
-
-        {/* Mobile Modal Picker */}
-        {showDatePicker && Platform.OS !== 'web' && (
-            <DateTimePicker
-                value={selectedDate}
-                mode="date"
-                display="default"
-                onChange={onDateChange}
-                maximumDate={new Date()}
-            />
+                {showDatePicker && (
+                    <DateTimePicker
+                        value={selectedDate}
+                        mode="date"
+                        display="default"
+                        onChange={onDateChange}
+                        maximumDate={new Date()}
+                    />
+                )}
+            </View>
         )}
 
         {/* CLASS SELECTOR */}
@@ -234,15 +250,22 @@ export default function TeacherAttendanceView() {
             contentContainerStyle={{paddingBottom: 100}}
             extraData={attendanceMap} 
             renderItem={({item}) => {
-                const isAbsent = attendanceMap[item.studentId] === 'ABSENT';
-                const isPresent = !isAbsent; 
+                const status = attendanceMap[item.studentId] || 'PRESENT';
+                const isAbsent = status === 'ABSENT';
+                const isPresent = !isAbsent;
+
+                // Dynamic Style Construction to prevent glitches
+                const cardStyle = {
+                    ...styles.studentCard,
+                    ...(isAbsent ? styles.cardAbsent : {})
+                };
 
                 return (
-                    <View style={[styles.studentCard, isAbsent && styles.cardAbsent]}>
+                    <View style={cardStyle}>
                         <TouchableOpacity 
                             style={styles.cardMainClick} 
                             onPress={() => toggleStatus(item.studentId)}
-                            activeOpacity={0.7}
+                            activeOpacity={0.9} // Less transparency on click to keep content visible
                         >
                             <View style={[styles.avatar, isAbsent && {backgroundColor: '#FECACA'}]}>
                                 <Text style={[styles.avatarText, isAbsent && {color: '#DC2626'}]}>
@@ -339,8 +362,7 @@ const styles = StyleSheet.create({
       backgroundColor: '#FFF7ED', borderRadius: 12, padding: 16,
       borderWidth: 1, borderColor: '#FED7AA'
   },
-  mobileDateTouch: { position: 'absolute', width: '100%', height: '100%', zIndex: 5 },
-  dateLabel: { fontSize: 12, color: '#9A3412', fontWeight: '600', textTransform: 'uppercase' },
+  dateLabel: { fontSize: 12, color: '#9A3412', fontWeight: '600', textTransform: 'uppercase', marginBottom: 6 },
   dateRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   dateText: { fontSize: 18, fontWeight: 'bold', color: '#C2410C', marginRight: 6 },
   calendarIconBox: { backgroundColor: '#F97316', padding: 10, borderRadius: 12 },
@@ -351,8 +373,26 @@ const styles = StyleSheet.create({
   chipText: { color: '#374151', fontWeight: '500' },
   chipTextActive: { color: '#FFF', fontWeight: 'bold' },
   
-  studentCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2, overflow: 'hidden' },
-  cardAbsent: { backgroundColor: '#FEF2F2', borderLeftWidth: 4, borderLeftColor: '#EF4444' },
+  // Consolidated Student Card Style
+  studentCard: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      backgroundColor: '#FFF', 
+      borderRadius: 12, 
+      marginBottom: 10, 
+      shadowColor: '#000', 
+      shadowOffset: { width: 0, height: 1 }, 
+      shadowOpacity: 0.05, 
+      shadowRadius: 2, 
+      elevation: 2, 
+      overflow: 'hidden',
+      borderLeftWidth: 0 
+  },
+  cardAbsent: { 
+      backgroundColor: '#FEF2F2', 
+      borderLeftWidth: 4, 
+      borderLeftColor: '#EF4444' 
+  },
   cardMainClick: { flex: 1, flexDirection: 'row', alignItems: 'center', padding: 16 },
   
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 12 },

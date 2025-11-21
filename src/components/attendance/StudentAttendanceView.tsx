@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { getStudentAttendance, StudentAttendanceViewDTO } from '../../api/attendanceApi';
@@ -33,6 +33,21 @@ export default function StudentAttendanceView() {
       const data = await getStudentAttendance(user.username, year, month);
       setAttendanceData(data);
       processCalendarDates(data.dailyRecords);
+
+      // Default to Today's Date Logic
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${y}-${m}-${d}`;
+
+      const todayRecord = data.dailyRecords.find((r: any) => r.date === todayStr);
+      
+      setSelectedDateInfo({
+          date: todayStr,
+          status: todayRecord ? todayRecord.status : 'NOT MARKED'
+      });
+
     } catch (error) {
       console.error("Failed to load attendance");
     } finally {
@@ -81,8 +96,17 @@ export default function StudentAttendanceView() {
       const record = attendanceData?.dailyRecords.find(r => r.date === day.dateString);
       setSelectedDateInfo({
           date: day.dateString,
-          status: record ? record.status : 'NO DATA'
+          status: record ? record.status : 'NOT MARKED'
       });
+  };
+
+  // Helper to get color based on status for the Highlight Card
+  const getStatusColor = (status: string) => {
+      const s = status.toUpperCase();
+      if (s === 'PRESENT' || s === 'P') return '#10B981';
+      if (s === 'ABSENT' || s === 'A') return '#EF4444';
+      if (s === 'HOLIDAY' || s === 'H') return '#8B5CF6';
+      return '#F59E0B'; // Orange for NOT MARKED
   };
 
   if (loading && !attendanceData) return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
@@ -94,7 +118,7 @@ export default function StudentAttendanceView() {
     >
       <Text style={styles.pageTitle}>My Attendance</Text>
 
-      {/* STATS */}
+      {/* STATS CARD */}
       {attendanceData && (
         <View style={styles.card}>
             <View style={styles.statsHeader}>
@@ -119,6 +143,21 @@ export default function StudentAttendanceView() {
                 </View>
             </View>
         </View>
+      )}
+
+      {/* SELECTED DAY INFO (HIGHLIGHTED) */}
+      {selectedDateInfo && (
+          <View style={[styles.infoCard, { borderLeftColor: getStatusColor(selectedDateInfo.status) }]}>
+              <View>
+                  <Text style={styles.infoDate}>{selectedDateInfo.date}</Text>
+                  <Text style={styles.infoLabel}>Day Status</Text>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedDateInfo.status) + '20' }]}>
+                  <Text style={[styles.statusText, { color: getStatusColor(selectedDateInfo.status) }]}>
+                      {selectedDateInfo.status}
+                  </Text>
+              </View>
+          </View>
       )}
 
       {/* CALENDAR */}
@@ -147,14 +186,6 @@ export default function StudentAttendanceView() {
               </View>
           </View>
       </View>
-
-      {/* SELECTED DAY INFO */}
-      {selectedDateInfo && (
-          <View style={styles.infoCard}>
-              <Text style={styles.infoDate}>{selectedDateInfo.date}</Text>
-              <Text style={styles.infoStatus}>Status: {selectedDateInfo.status}</Text>
-          </View>
-      )}
     </ScrollView>
   );
 }
@@ -163,7 +194,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#F3F4F6' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   pageTitle: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 20 },
-  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 16, elevation: 2 },
+  
+  card: { 
+      backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 16, elevation: 2,
+      shadowColor: '#000', shadowOffset: {width:0, height:1}, shadowOpacity: 0.05, shadowRadius: 2
+  },
+  
+  // Stats Styles
   statsHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   statsLabel: { color: '#6B7280', fontSize: 14 },
   percentageText: { fontSize: 32, fontWeight: 'bold', color: '#111827' },
@@ -171,10 +208,36 @@ const styles = StyleSheet.create({
   statItem: { alignItems: 'center' },
   statValue: { fontSize: 18, fontWeight: 'bold' },
   statTitle: { fontSize: 12, color: '#6B7280' },
+
+  // Calendar Legend
   legend: { flexDirection: 'row', marginTop: 16, justifyContent: 'center' },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   legendText: { fontSize: 12, color: '#4B5563' },
-  infoCard: { backgroundColor: '#FFF', padding: 16, borderRadius: 12, borderLeftWidth: 4, borderLeftColor: '#F97316' },
-  infoDate: { fontWeight: 'bold', fontSize: 16 },
-  infoStatus: { color: '#4B5563', marginTop: 4 }
+
+  // Highlight Card Styles (Updated)
+  infoCard: { 
+      backgroundColor: '#FFF', 
+      padding: 16, 
+      borderRadius: 12, 
+      borderLeftWidth: 4, 
+      marginBottom: 16,
+      flexDirection: 'row',          // Row layout for better look
+      justifyContent: 'space-between', 
+      alignItems: 'center',
+      elevation: 2,
+      shadowColor: '#000', shadowOffset: {width:0, height:1}, shadowOpacity: 0.05, shadowRadius: 2
+  },
+  infoDate: { fontWeight: 'bold', fontSize: 18, color: '#111827' },
+  infoLabel: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  
+  statusBadge: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+  },
+  statusText: {
+      fontWeight: 'bold',
+      fontSize: 14,
+      textTransform: 'uppercase'
+  }
 });

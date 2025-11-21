@@ -15,6 +15,9 @@ import { getStudentProfile } from '../../src/api/studentService';
 import { useAuth } from '../../src/context/AuthContext';
 import { StudentDTO } from '../../src/types/student';
 
+// Backend Base URL
+const API_BASE_URL = 'http://192.168.0.136:8080';
+
 export default function ProfileScreen() {
   const { state } = useAuth();
   const router = useRouter();
@@ -25,12 +28,17 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<StudentDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Bug Fix: Image load avvakapothe track cheyadaniki state
+  const [imageError, setImageError] = useState(false);
 
   const fetchProfile = async () => {
     if (!user?.username) return;
     try {
       const data = await getStudentProfile(user.username);
       setProfile(data);
+      // Kotha profile vachinappudu error ni reset cheyali
+      setImageError(false);
     } catch (error) {
       console.error('Failed to load profile');
     } finally {
@@ -46,6 +54,17 @@ export default function ProfileScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     fetchProfile();
+  };
+
+  // Logic: Relative path unte Base URL add cheyadam
+  const getFullImageUrl = (url: string) => {
+    if (!url) return null;
+    if (url.startsWith('http') || url.startsWith('https')) {
+      return url;
+    }
+    // Remove leading slash if exists to avoid double slashes
+    const cleanPath = url.startsWith('/') ? url.substring(1) : url;
+    return `${API_BASE_URL}/${cleanPath}`;
   };
 
   if (state.status === 'loading' || loading) {
@@ -72,6 +91,40 @@ export default function ProfileScreen() {
     </View>
   );
 
+  // Helper component to render Image or Placeholder based on error state
+  const ProfileAvatar = ({ isWebMode }: { isWebMode: boolean }) => {
+    const imageUrl = getFullImageUrl(profile.profileImageUrl || '');
+    const containerStyle = isWebMode ? styles.profileImageContainerWeb : styles.profileImageContainer;
+    const imageStyle = isWebMode ? [styles.profileImage, styles.profileImageWeb] : styles.profileImage;
+    const placeholderStyle = isWebMode ? [styles.placeholderImage, styles.placeholderImageWeb] : styles.placeholderImage;
+
+    // Check: URL undali AND Error raakudadu
+    if (imageUrl && !imageError) {
+        return (
+            <View style={containerStyle}>
+                <Image 
+                    source={{ uri: imageUrl }} 
+                    style={imageStyle}
+                    onError={(e) => {
+                        console.log("Image Load Failed:", e.nativeEvent.error);
+                        console.log("Failed URL:", imageUrl);
+                        setImageError(true); // Error vaste placeholder chupinchu
+                    }}
+                />
+            </View>
+        );
+    }
+
+    // Fallback: Placeholder
+    return (
+        <View style={containerStyle}>
+            <View style={placeholderStyle}>
+                 <Ionicons name="person" size={isWebMode ? 70 : 50} color="#9CA3AF" />
+            </View>
+        </View>
+    );
+  };
+
   return (
     <ScrollView 
       style={styles.container}
@@ -83,18 +136,8 @@ export default function ProfileScreen() {
           <View style={styles.webContainer}>
             
             <View style={styles.webLeftSection}>
-              <View style={styles.profileImageContainerWeb}>
-                {profile.profileImageUrl ? (
-                  <Image 
-                    source={{ uri: profile.profileImageUrl }} 
-                    style={[styles.profileImage, styles.profileImageWeb]} 
-                  />
-                ) : (
-                  <View style={[styles.placeholderImage, styles.placeholderImageWeb]}>
-                     <Ionicons name="person" size={70} color="#9CA3AF" />
-                  </View>
-                )}
-              </View>
+              {/* Web Avatar Render */}
+              <ProfileAvatar isWebMode={true} />
               
               <View style={styles.webIdentityInfo}>
                 <Text style={styles.webLabel}>name:</Text>
@@ -129,15 +172,8 @@ export default function ProfileScreen() {
         ) : (
           
           <>
-            <View style={styles.profileImageContainer}>
-              {profile.profileImageUrl ? (
-                <Image source={{ uri: profile.profileImageUrl }} style={styles.profileImage} />
-              ) : (
-                <View style={styles.placeholderImage}>
-                   <Ionicons name="person" size={50} color="#9CA3AF" />
-                </View>
-              )}
-            </View>
+            {/* Mobile Avatar Render */}
+            <ProfileAvatar isWebMode={false} />
             
             <View style={styles.headerInfo}>
               <Text style={styles.nameText}>{profile.fullName}</Text>

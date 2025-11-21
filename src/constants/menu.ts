@@ -8,9 +8,10 @@ export const adminMenu: MenuItem[] = [
   { label: 'Dashboard', iconName: 'apps-outline', path: '/(app)' },
   { label: 'Students', iconName: 'people-outline', path: '/(app)/students' },
   { label: 'Teachers', iconName: 'person-outline', path: '/(app)/teachers' },
+  { label: 'Classes', iconName: 'layers-outline', path: '/(app)/class' }, // Updated Label
+  { label: 'Subjects', iconName: 'book-outline', path: '/(app)/subjects' }, // New Item
   { label: 'Timetable', iconName: 'time-outline', path: '/(app)/timetable' }, 
   { label: 'Exam Timetable', iconName: 'calendar-number-outline', path: '/(app)/examschedule' }, 
-  { label: 'Class', iconName: 'layers-outline', path: '/(app)/class' },
   { label: 'Transport', iconName: 'bus-outline', path: '/(app)/transport' },
   { label: 'Notice', iconName: 'megaphone-outline', path: '/(app)/notice' },
   { label: 'Settings', iconName: 'settings-outline', path: '/(app)/settings' },
