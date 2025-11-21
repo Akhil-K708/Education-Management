@@ -7,6 +7,7 @@ import {
   FlatList,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,7 +15,17 @@ import {
   View,
   useWindowDimensions
 } from 'react-native';
-import { ClassSectionDTO, createClassSection, deleteClassSection, getAllClassSections } from '../../src/api/adminApi';
+import {
+  ClassSectionDTO,
+  SubjectDTO,
+  TeacherDTO, // Imported TeacherDTO
+  createClassSection,
+  deleteClassSection,
+  getAllClassSections,
+  getAllSubjects,
+  getAllTeachers
+} from '../../src/api/adminApi';
+import { studentApi } from '../../src/api/axiosInstance';
 import { useAuth } from '../../src/context/AuthContext';
 
 export default function ClassScreen() {
@@ -22,13 +33,25 @@ export default function ClassScreen() {
   const router = useRouter();
   const user = state.user;
   
-  // Responsive Logic
+  // --- RESPONSIVE GRID LOGIC ---
   const { width } = useWindowDimensions();
+  const CONTAINER_PADDING = 20;
+  const GAP = 16; 
+
+  const numColumns = width > 1200 ? 4 : (width > 768 ? 3 : 1);
   const isWeb = width > 768;
-  const numColumns = isWeb ? 3 : 1; // Web: 3 cols, Mobile: 1 col
+
+  const availableWidth = width - (CONTAINER_PADDING * 2);
+  const cardWidth = (availableWidth - ((numColumns - 1) * GAP)) / numColumns;
+  // -----------------------------
 
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState<ClassSectionDTO[]>([]);
+  
+  // Dropdown Data Typed correctly
+  const [teachersList, setTeachersList] = useState<TeacherDTO[]>([]);
+  const [subjectsList, setSubjectsList] = useState<SubjectDTO[]>([]);
+
   const [modalVisible, setModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,12 +60,24 @@ export default function ClassScreen() {
   const [section, setSection] = useState('');
   const [academicYear, setAcademicYear] = useState('2025-2026');
   const [capacity, setCapacity] = useState('40');
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
 
-  const fetchClasses = async () => {
+  // UI State for Dropdowns
+  const [showTeacherDropdown, setShowTeacherDropdown] = useState(false);
+  const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
+
+  const fetchAllData = async () => {
     setLoading(true);
     try {
-      const data = await getAllClassSections();
-      setClasses(data);
+      const [cls, tch, sub] = await Promise.all([
+          getAllClassSections(),
+          getAllTeachers(),
+          getAllSubjects()
+      ]);
+      setClasses(cls);
+      setTeachersList(tch);
+      setSubjectsList(sub);
     } catch (e) {
       console.error(e);
     } finally {
@@ -58,7 +93,7 @@ export default function ClassScreen() {
         }, 0);
         return () => clearTimeout(timer);
     }
-    fetchClasses();
+    fetchAllData();
   }, [user, state.status]);
 
   const handleCreate = async () => {
@@ -69,16 +104,32 @@ export default function ClassScreen() {
 
     setIsSubmitting(true);
     try {
-      await createClassSection({
+      // 1. Create Class Section
+      const newClass = await createClassSection({
         className,
         section,
         academicYear,
-        capacity: parseInt(capacity)
+        capacity: parseInt(capacity),
+        classTeacherId: selectedTeacherId || undefined
       });
+
+      // 2. Assign Subjects (if selected)
+      if (selectedSubjectIds.length > 0 && newClass.classSectionId) {
+          try {
+            await studentApi.post('/subject/assign', {
+                classSectionId: newClass.classSectionId,
+                subjectIds: selectedSubjectIds,
+                teacherId: null 
+            });
+          } catch (err) {
+             console.log("Subject assignment skipped or handled by backend");
+          }
+      }
+
       Alert.alert("Success", "Class Created Successfully!");
       setModalVisible(false);
       resetForm();
-      fetchClasses();
+      fetchAllData(); 
     } catch (e: any) {
       Alert.alert("Error", e.response?.data?.message || "Failed to create class");
     } finally {
@@ -102,7 +153,7 @@ export default function ClassScreen() {
   const processDelete = async (id: string) => {
     try {
       await deleteClassSection(id);
-      fetchClasses();
+      fetchAllData();
     } catch (e) {
       Alert.alert("Error", "Failed to delete class");
     }
@@ -112,17 +163,38 @@ export default function ClassScreen() {
     setClassName('');
     setSection('');
     setCapacity('40');
+    setSelectedTeacherId('');
+    setSelectedSubjectIds([]);
+    setShowTeacherDropdown(false);
+    setShowSubjectDropdown(false);
+  };
+
+  const toggleSubjectSelection = (id: string) => {
+      if (selectedSubjectIds.includes(id)) {
+          setSelectedSubjectIds(prev => prev.filter(sid => sid !== id));
+      } else {
+          setSelectedSubjectIds(prev => [...prev, id]);
+      }
+  };
+
+  const getTeacherName = (id: string) => {
+      const t = teachersList.find(t => t.teacherId === id);
+      return t ? t.teacherName : 'Select Teacher';
   };
 
   if (state.status === 'loading' || loading && classes.length === 0) {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
   }
 
-  // --- RENDER ITEM LOGIC ---
   const renderItem = ({ item }: { item: ClassSectionDTO }) => (
-    // Outer Container: Takes exactly 33.33% width on Web
-    <View style={[styles.itemContainer, isWeb && styles.itemContainerWeb]}>
-        {/* Inner Card: This is the visible card */}
+    <View style={[
+        styles.itemContainer, 
+        isWeb && { 
+            width: `${100 / numColumns}%`, // CHANGE: Width ni dynamic ga marcham based on columns
+            paddingHorizontal: 10, 
+            marginBottom: 20 
+        }
+    ]}>
         <View style={styles.card}>
             <View style={styles.cardIcon}>
                 <Ionicons name="easel-outline" size={24} color="#FFF" />
@@ -133,7 +205,7 @@ export default function ClassScreen() {
                 <Text style={styles.classDetails}>
                 Strength: {item.currentStrength || 0} / {item.capacity}
                 </Text>
-                <Text style={styles.teacherText}>
+                <Text style={[styles.teacherText, item.classTeacherName ? {color:'#059669'} : {color:'#EF4444'}]}>
                 Teacher: {item.classTeacherName || 'Not Assigned'}
                 </Text>
             </View>
@@ -159,14 +231,9 @@ export default function ClassScreen() {
         keyExtractor={(item) => item.classSectionId || Math.random().toString()}
         renderItem={renderItem}
         contentContainerStyle={{ paddingBottom: 20 }}
-        
-        // Grid Config
-        key={isWeb ? 'web' : 'mobile'}
+        key={numColumns}
         numColumns={numColumns}
-        
-        // Remove gap here, handled by itemContainer padding
-        columnWrapperStyle={isWeb ? null : undefined} 
-        
+        columnWrapperStyle={isWeb ? null : undefined}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No classes found. Create one!</Text>
@@ -177,57 +244,127 @@ export default function ClassScreen() {
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Create New Class</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <TouchableOpacity onPress={() => { setModalVisible(false); resetForm(); }}>
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>Class Name (Grade)</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="e.g. 10" 
-              value={className}
-              onChangeText={setClassName}
-            />
+            <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={styles.label}>Class Name (Grade)</Text>
+                <TextInput 
+                style={styles.input} 
+                placeholder="e.g. 10" 
+                value={className}
+                onChangeText={setClassName}
+                />
 
-            <Text style={styles.label}>Section</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="e.g. A" 
-              value={section}
-              onChangeText={setSection}
-            />
+                <Text style={styles.label}>Section</Text>
+                <TextInput 
+                style={styles.input} 
+                placeholder="e.g. A" 
+                value={section}
+                onChangeText={setSection}
+                />
 
-            <Text style={styles.label}>Academic Year</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="e.g. 2025-2026" 
-              value={academicYear}
-              onChangeText={setAcademicYear}
-            />
+                <Text style={styles.label}>Academic Year</Text>
+                <TextInput 
+                style={styles.input} 
+                placeholder="e.g. 2025-2026" 
+                value={academicYear}
+                onChangeText={setAcademicYear}
+                />
 
-            <Text style={styles.label}>Capacity</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="e.g. 40" 
-              keyboardType="numeric"
-              value={capacity}
-              onChangeText={setCapacity}
-            />
+                <Text style={styles.label}>Capacity</Text>
+                <TextInput 
+                style={styles.input} 
+                placeholder="e.g. 40" 
+                keyboardType="numeric"
+                value={capacity}
+                onChangeText={setCapacity}
+                />
 
-            <TouchableOpacity 
-              style={styles.submitBtn} 
-              onPress={handleCreate}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFF" />
-              ) : (
-                <Text style={styles.submitBtnText}>Create Class</Text>
-              )}
-            </TouchableOpacity>
+                {/* TEACHER DROPDOWN */}
+                <Text style={styles.label}>Assign Class Teacher</Text>
+                <TouchableOpacity 
+                    style={styles.dropdownBtn} 
+                    onPress={() => {
+                        setShowTeacherDropdown(!showTeacherDropdown);
+                        setShowSubjectDropdown(false);
+                    }}
+                >
+                    <Text style={styles.dropdownText}>{selectedTeacherId ? getTeacherName(selectedTeacherId) : "Select Teacher"}</Text>
+                    <Ionicons name={showTeacherDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6B7280" />
+                </TouchableOpacity>
+                
+                {showTeacherDropdown && (
+                    <View style={styles.dropdownList}>
+                        <ScrollView nestedScrollEnabled style={{ maxHeight: 150 }}>
+                            {teachersList.map(t => (
+                                <TouchableOpacity 
+                                    key={t.teacherId} 
+                                    style={[styles.dropdownItem, selectedTeacherId === t.teacherId && styles.dropdownItemSelected]}
+                                    onPress={() => {
+                                        setSelectedTeacherId(t.teacherId || ''); // SAFE NOW
+                                        setShowTeacherDropdown(false);
+                                    }}
+                                >
+                                    <Text style={styles.dropdownItemText}>{t.teacherName}</Text>
+                                    {selectedTeacherId === t.teacherId && <Ionicons name="checkmark" size={16} color="#F97316" />}
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
+
+                {/* SUBJECT DROPDOWN (MULTI) */}
+                <Text style={[styles.label, {marginTop: 12}]}>Assign Subjects ({selectedSubjectIds.length})</Text>
+                <TouchableOpacity 
+                    style={styles.dropdownBtn} 
+                    onPress={() => {
+                        setShowSubjectDropdown(!showSubjectDropdown);
+                        setShowTeacherDropdown(false);
+                    }}
+                >
+                    <Text style={styles.dropdownText}>{selectedSubjectIds.length > 0 ? `${selectedSubjectIds.length} Selected` : "Select Subjects"}</Text>
+                    <Ionicons name={showSubjectDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6B7280" />
+                </TouchableOpacity>
+
+                {showSubjectDropdown && (
+                    <View style={styles.dropdownList}>
+                        <ScrollView nestedScrollEnabled style={{ maxHeight: 150 }}>
+                            {subjectsList.map(s => (
+                                <TouchableOpacity 
+                                    key={s.subjectId} 
+                                    style={[styles.dropdownItem, selectedSubjectIds.includes(s.subjectId!) && styles.dropdownItemSelected]}
+                                    onPress={() => toggleSubjectSelection(s.subjectId!)}
+                                >
+                                    <Text style={styles.dropdownItemText}>{s.subjectName}</Text>
+                                    {selectedSubjectIds.includes(s.subjectId!) ? (
+                                        <Ionicons name="checkbox" size={20} color="#F97316" />
+                                    ) : (
+                                        <Ionicons name="square-outline" size={20} color="#D1D5DB" />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
+
+                <TouchableOpacity 
+                style={styles.submitBtn} 
+                onPress={handleCreate}
+                disabled={isSubmitting}
+                >
+                {isSubmitting ? (
+                    <ActivityIndicator color="#FFF" />
+                ) : (
+                    <Text style={styles.submitBtnText}>Create Class</Text>
+                )}
+                </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -239,7 +376,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#F3F4F6' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
-  // Header
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   headerRowMobile: { flexDirection: 'column', alignItems: 'flex-start', gap: 15 },
   
@@ -250,13 +386,8 @@ const styles = StyleSheet.create({
   
   // --- GRID SYSTEM STYLES ---
   itemContainer: {
-    width: '100%', // Mobile default
+    width: '100%', 
     marginBottom: 16,
-  },
-  itemContainerWeb: {
-    width: '33.33%', // Exactly 1/3rd of screen
-    paddingHorizontal: 10, // Creates gap between cards
-    marginBottom: 20,
   },
   
   card: { 
@@ -267,25 +398,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
-    // minWidth logic removed to rely on container width
   },
 
   cardIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   cardContent: { flex: 1 },
   className: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
   classDetails: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  teacherText: { fontSize: 13, color: '#059669', marginTop: 4, fontWeight: '500' },
+  teacherText: { fontSize: 13, marginTop: 4, fontWeight: '600' },
   deleteBtn: { padding: 8 },
 
   emptyState: { alignItems: 'center', marginTop: 50 },
   emptyText: { color: '#9CA3AF', fontSize: 16 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { backgroundColor: '#FFF', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 },
+  modalContent: { backgroundColor: '#FFF', borderRadius: 16, padding: 24, width: '100%', maxWidth: 450, maxHeight: '90%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
+  
   label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6 },
   input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 16, backgroundColor: '#F9FAFB' },
-  submitBtn: { backgroundColor: '#F97316', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  
+  dropdownBtn: { 
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, backgroundColor: '#FFF'
+  },
+  dropdownText: { fontSize: 14, color: '#374151' },
+  dropdownList: { 
+      borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, marginTop: 4, backgroundColor: '#FFF',
+      maxHeight: 150 
+  },
+  dropdownItem: { flexDirection: 'row', justifyContent: 'space-between', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  dropdownItemSelected: { backgroundColor: '#FFF7ED' },
+  dropdownItemText: { fontSize: 14, color: '#374151' },
+
+  submitBtn: { backgroundColor: '#F97316', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 24 },
   submitBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
 });

@@ -111,8 +111,15 @@ export default function SubjectsScreen() {
   }
 
   // --- RENDER ITEM ---
-  const renderItem = ({ item }: { item: SubjectDTO }) => (
-    <View style={[styles.itemContainer, isWeb && styles.itemContainerWeb]}>
+ const renderItem = ({ item }: { item: SubjectDTO }) => (
+    <View style={[
+        styles.itemContainer, 
+        isWeb && { 
+            width: `${100 / numColumns}%`, // FIX: Dynamic Width based on columns
+            paddingHorizontal: 10, 
+            marginBottom: 20 
+        }
+    ]}>
         <View style={styles.card}>
             <View style={styles.cardIcon}>
                 <Ionicons name="book" size={24} color="#FFF" />
@@ -218,12 +225,6 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 16,
   },
-  itemContainerWeb: {
-    width: '33.33%',
-    paddingHorizontal: 10,
-    marginBottom: 20,
-  },
-
   card: { 
     flex: 1, 
     backgroundColor: '#FFF', 
