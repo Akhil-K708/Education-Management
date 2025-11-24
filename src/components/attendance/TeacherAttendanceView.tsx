@@ -54,7 +54,6 @@ export default function TeacherAttendanceView() {
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [students, setStudents] = useState<any[]>([]);
   
-  // Logic Fix: Always store explicit 'PRESENT' or 'ABSENT'
   const [attendanceMap, setAttendanceMap] = useState<Record<string, string>>({}); 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -67,7 +66,6 @@ export default function TeacherAttendanceView() {
     fetchClasses();
   }, [user]);
 
-  // Re-fetch attendance when Class, Date, OR Student list changes
   useEffect(() => {
     if (selectedClass && selectedDate && students.length > 0) {
         fetchExistingAttendance();
@@ -96,15 +94,12 @@ export default function TeacherAttendanceView() {
         setLoading(true);
         const studentList = await getClassStudents(classId);
         setStudents(studentList);
-        // Note: attendanceMap will be built by the useEffect triggered by students change
       } catch(e) { console.error(e); setLoading(false); }
   };
 
   const fetchExistingAttendance = async () => {
       if(!selectedClass) return;
       
-      // Don't show full loading, just update state quietly or small loader if needed
-      // Building initial map with ALL PRESENT
       const newMap: Record<string, string> = {};
       students.forEach(s => {
           newMap[s.studentId] = 'PRESENT';
@@ -116,7 +111,6 @@ export default function TeacherAttendanceView() {
         
         if (existingRecords && existingRecords.length > 0) {
             existingRecords.forEach((rec: any) => {
-                // Update only valid statuses
                 if (rec.status === 'ABSENT') {
                     newMap[rec.studentId] = 'ABSENT';
                 }
@@ -131,7 +125,6 @@ export default function TeacherAttendanceView() {
       }
   };
 
-  // --- BUG FIX: Simple Toggle Logic ---
   const toggleStatus = (studentId: string) => {
       setAttendanceMap(prev => ({
           ...prev,
@@ -146,7 +139,6 @@ export default function TeacherAttendanceView() {
           const formattedDate = selectedDate.toISOString().split('T')[0];
           const entries = students.map(s => ({
               studentId: s.studentId,
-              // Ensure we send the exact status from map
               status: attendanceMap[s.studentId] || 'PRESENT'
           }));
 
@@ -253,8 +245,6 @@ export default function TeacherAttendanceView() {
                 const status = attendanceMap[item.studentId] || 'PRESENT';
                 const isAbsent = status === 'ABSENT';
                 const isPresent = !isAbsent;
-
-                // Dynamic Style Construction to prevent glitches
                 const cardStyle = {
                     ...styles.studentCard,
                     ...(isAbsent ? styles.cardAbsent : {})
@@ -265,7 +255,7 @@ export default function TeacherAttendanceView() {
                         <TouchableOpacity 
                             style={styles.cardMainClick} 
                             onPress={() => toggleStatus(item.studentId)}
-                            activeOpacity={0.9} // Less transparency on click to keep content visible
+                            activeOpacity={0.9} 
                         >
                             <View style={[styles.avatar, isAbsent && {backgroundColor: '#FECACA'}]}>
                                 <Text style={[styles.avatarText, isAbsent && {color: '#DC2626'}]}>

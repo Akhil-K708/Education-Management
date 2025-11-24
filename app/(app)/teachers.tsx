@@ -16,7 +16,7 @@ import {
   View,
   useWindowDimensions
 } from 'react-native';
-import { TeacherDTO, createTeacher, deleteTeacher, getAllTeachers } from '../../src/api/adminApi';
+import { TeacherDTO, createTeacher, deleteTeacher, getAllTeachers, updateTeacher } from '../../src/api/adminApi';
 import { useAuth } from '../../src/context/AuthContext';
 
 export default function TeachersScreen() {
@@ -33,6 +33,10 @@ export default function TeachersScreen() {
   const [teachers, setTeachers] = useState<TeacherDTO[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Edit Mode State
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     teacherName: '',
@@ -71,7 +75,7 @@ export default function TeachersScreen() {
       fetchTeachers(true);
   };
 
-  const handleCreate = async () => {
+  const handleCreateOrUpdate = async () => {
     if (!formData.teacherName || !formData.email || !formData.phone) {
       Alert.alert("Error", "Please fill mandatory fields (Name, Email, Phone)");
       return;
@@ -79,19 +83,44 @@ export default function TeachersScreen() {
 
     setIsSubmitting(true);
     try {
-      await createTeacher({
+      const teacherData = {
         ...formData,
         experience: formData.experience ? parseInt(formData.experience) : 0
-      });
-      Alert.alert("Success", "Teacher Added Successfully!");
+      };
+
+      if (isEditMode && editingTeacherId) {
+          // Update Logic
+          await updateTeacher(editingTeacherId, teacherData);
+          Alert.alert("Success", "Teacher Updated Successfully!");
+      } else {
+          // Create Logic
+          await createTeacher(teacherData);
+          Alert.alert("Success", "Teacher Added Successfully!");
+      }
+      
       setModalVisible(false);
-      setFormData({ teacherName: '', email: '', phone: '', qualification: '', gender: 'Male', experience: '', address: '' });
+      resetForm();
       fetchTeachers();
     } catch (e: any) {
-      Alert.alert("Error", "Failed to add teacher. Email might be duplicate.");
+      Alert.alert("Error", isEditMode ? "Failed to update teacher." : "Failed to add teacher. Email might be duplicate.");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const openEditModal = (teacher: TeacherDTO) => {
+      setIsEditMode(true);
+      setEditingTeacherId(teacher.teacherId!);
+      setFormData({
+          teacherName: teacher.teacherName,
+          email: teacher.email,
+          phone: teacher.phone,
+          qualification: teacher.qualification,
+          gender: teacher.gender || 'Male',
+          experience: teacher.experience ? teacher.experience.toString() : '',
+          address: teacher.address
+      });
+      setModalVisible(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -114,12 +143,18 @@ export default function TeachersScreen() {
     }
   };
 
+  const resetForm = () => {
+      setFormData({ teacherName: '', email: '', phone: '', qualification: '', gender: 'Male', experience: '', address: '' });
+      setIsEditMode(false);
+      setEditingTeacherId(null);
+  };
+
  const renderItem = ({ item }: { item: TeacherDTO }) => (
     <View style={[
         styles.itemContainer, 
         isWeb && { 
-            width: `${100 / numColumns}%`, // FIX 1: Dynamic Width
-            paddingHorizontal: 10, // Spacing ni ikkada handle chestunnam
+            width: `${100 / numColumns}%`, 
+            paddingHorizontal: 10, 
             marginBottom: 20 
         }
     ]}>
@@ -132,9 +167,6 @@ export default function TeachersScreen() {
                     <Text style={styles.name}>{item.teacherName}</Text>
                     <Text style={styles.subText}>{item.qualification}</Text>
                 </View>
-                <TouchableOpacity onPress={() => handleDelete(item.teacherId!)}>
-                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                </TouchableOpacity>
             </View>
             
             <View style={styles.infoRow}>
@@ -146,9 +178,18 @@ export default function TeachersScreen() {
                 <Text style={styles.infoText}>{item.email}</Text>
             </View>
             
-            <View style={styles.badgeRow}>
+            <View style={styles.cardFooter}>
                 <View style={styles.badge}>
                     <Text style={styles.badgeText}>{item.experience} Yrs Exp</Text>
+                </View>
+
+                <View style={styles.actionIcons}>
+                    <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconBtn}>
+                        <Ionicons name="create-outline" size={20} color="#2563EB" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleDelete(item.teacherId!)} style={styles.iconBtn}>
+                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                    </TouchableOpacity>
                 </View>
             </View>
         </View>
@@ -159,7 +200,7 @@ export default function TeachersScreen() {
     <View style={styles.container}>
       <View style={[styles.headerRow, !isWeb && styles.headerRowMobile]}>
         <Text style={styles.title}>Teacher Management</Text>
-        <TouchableOpacity style={[styles.addBtn, !isWeb && styles.addBtnMobile]} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity style={[styles.addBtn, !isWeb && styles.addBtnMobile]} onPress={() => { resetForm(); setModalVisible(true); }}>
           <Ionicons name="add" size={20} color="#FFF" />
           <Text style={styles.addBtnText}>Add Teacher</Text>
         </TouchableOpacity>
@@ -187,8 +228,8 @@ export default function TeachersScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Teacher</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <Text style={styles.modalTitle}>{isEditMode ? 'Edit Teacher' : 'Add New Teacher'}</Text>
+              <TouchableOpacity onPress={() => { setModalVisible(false); resetForm(); }}>
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
             </View>
@@ -226,8 +267,8 @@ export default function TeachersScreen() {
                 <Text style={styles.label}>Address</Text>
                 <TextInput style={[styles.input, {height: 60}]} multiline value={formData.address} onChangeText={t => setFormData({...formData, address: t})} placeholder="Enter address" />
 
-                <TouchableOpacity style={styles.submitBtn} onPress={handleCreate} disabled={isSubmitting}>
-                    {isSubmitting ? <ActivityIndicator color="#FFF"/> : <Text style={styles.submitBtnText}>Save Teacher</Text>}
+                <TouchableOpacity style={styles.submitBtn} onPress={handleCreateOrUpdate} disabled={isSubmitting}>
+                    {isSubmitting ? <ActivityIndicator color="#FFF"/> : <Text style={styles.submitBtnText}>{isEditMode ? 'Update Teacher' : 'Save Teacher'}</Text>}
                 </TouchableOpacity>
             </ScrollView>
           </View>
@@ -256,9 +297,14 @@ const styles = StyleSheet.create({
   subText: { fontSize: 12, color: '#6B7280' },
   infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   infoText: { marginLeft: 8, fontSize: 13, color: '#4B5563' },
-  badgeRow: { flexDirection: 'row', marginTop: 8 },
+  
+  // Footer Styling
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   badge: { backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   badgeText: { fontSize: 11, color: '#374151', fontWeight: '600' },
+  
+  actionIcons: { flexDirection: 'row', gap: 15 },
+  iconBtn: { padding: 4 },
   
   emptyText: { textAlign: 'center', color: '#9CA3AF', marginTop: 40 },
 

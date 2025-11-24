@@ -2,19 +2,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    useWindowDimensions,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View
 } from 'react-native';
-import { createSubject, deleteSubject, getAllSubjects, SubjectDTO } from '../../src/api/adminApi';
+import { createSubject, deleteSubject, getAllSubjects, SubjectDTO, updateSubject } from '../../src/api/adminApi';
 import { useAuth } from '../../src/context/AuthContext';
 
 export default function SubjectsScreen() {
@@ -35,6 +35,10 @@ export default function SubjectsScreen() {
   // Form State
   const [subjectName, setSubjectName] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
+
+  // Edit Mode State
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
 
   const fetchSubjects = async () => {
     setLoading(true);
@@ -59,7 +63,7 @@ export default function SubjectsScreen() {
     fetchSubjects();
   }, [user, state.status]);
 
-  const handleCreate = async () => {
+  const handleCreateOrUpdate = async () => {
     if (!subjectName || !subjectCode) {
       Alert.alert("Error", "Please fill all required fields");
       return;
@@ -67,21 +71,38 @@ export default function SubjectsScreen() {
 
     setIsSubmitting(true);
     try {
-      await createSubject({
-        subjectName,
-        subjectCode,
-        active: true
-      });
-      Alert.alert("Success", "Subject Created Successfully!");
+      if (isEditMode && editingSubjectId) {
+          await updateSubject(editingSubjectId, {
+              subjectName,
+              subjectCode,
+              active: true
+          });
+          Alert.alert("Success", "Subject Updated Successfully!");
+      } else {
+          await createSubject({
+            subjectName,
+            subjectCode,
+            active: true
+          });
+          Alert.alert("Success", "Subject Created Successfully!");
+      }
+      
       setModalVisible(false);
-      setSubjectName('');
-      setSubjectCode('');
+      resetForm();
       fetchSubjects();
     } catch (e: any) {
-      Alert.alert("Error", e.response?.data?.message || "Failed to create subject");
+      Alert.alert("Error", e.response?.data?.message || (isEditMode ? "Failed to update subject" : "Failed to create subject"));
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const openEditModal = (item: SubjectDTO) => {
+      setIsEditMode(true);
+      setEditingSubjectId(item.subjectId!);
+      setSubjectName(item.subjectName);
+      setSubjectCode(item.subjectCode);
+      setModalVisible(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -106,6 +127,13 @@ export default function SubjectsScreen() {
     }
   };
 
+  const resetForm = () => {
+      setSubjectName('');
+      setSubjectCode('');
+      setIsEditMode(false);
+      setEditingSubjectId(null);
+  };
+
   if (state.status === 'loading' || loading && subjects.length === 0) {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
   }
@@ -115,7 +143,7 @@ export default function SubjectsScreen() {
     <View style={[
         styles.itemContainer, 
         isWeb && { 
-            width: `${100 / numColumns}%`, // FIX: Dynamic Width based on columns
+            width: `${100 / numColumns}%`,
             paddingHorizontal: 10, 
             marginBottom: 20 
         }
@@ -128,9 +156,15 @@ export default function SubjectsScreen() {
                 <Text style={styles.subjectName}>{item.subjectName}</Text>
                 <Text style={styles.subjectCode}>Code: {item.subjectCode}</Text>
             </View>
-            <TouchableOpacity onPress={() => handleDelete(item.subjectId!)} style={styles.deleteBtn}>
-                <Ionicons name="trash-outline" size={20} color="#EF4444" />
-            </TouchableOpacity>
+            
+            <View style={styles.actionIcons}>
+                <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconBtn}>
+                    <Ionicons name="create-outline" size={20} color="#2563EB" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDelete(item.subjectId!)} style={styles.iconBtn}>
+                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                </TouchableOpacity>
+            </View>
         </View>
     </View>
   );
@@ -139,7 +173,7 @@ export default function SubjectsScreen() {
     <View style={styles.container}>
       <View style={[styles.headerRow, !isWeb && styles.headerRowMobile]}>
         <Text style={styles.title}>Subject Management</Text>
-        <TouchableOpacity style={[styles.addBtn, !isWeb && styles.addBtnMobile]} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity style={[styles.addBtn, !isWeb && styles.addBtnMobile]} onPress={() => { resetForm(); setModalVisible(true); }}>
           <Ionicons name="add" size={20} color="#FFF" />
           <Text style={styles.addBtnText}>Add Subject</Text>
         </TouchableOpacity>
@@ -167,8 +201,8 @@ export default function SubjectsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create New Subject</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <Text style={styles.modalTitle}>{isEditMode ? "Edit Subject" : "Create New Subject"}</Text>
+              <TouchableOpacity onPress={() => { setModalVisible(false); resetForm(); }}>
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
             </View>
@@ -192,13 +226,13 @@ export default function SubjectsScreen() {
 
             <TouchableOpacity 
               style={styles.submitBtn} 
-              onPress={handleCreate}
+              onPress={handleCreateOrUpdate}
               disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
-                <Text style={styles.submitBtnText}>Create Subject</Text>
+                <Text style={styles.submitBtnText}>{isEditMode ? "Update Subject" : "Create Subject"}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -238,7 +272,9 @@ const styles = StyleSheet.create({
   cardContent: { flex: 1 },
   subjectName: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
   subjectCode: { fontSize: 13, color: '#6B7280', marginTop: 2, fontWeight: '600' },
-  deleteBtn: { padding: 8 },
+  
+  actionIcons: { flexDirection: 'row', gap: 10, marginLeft: 10 },
+  iconBtn: { padding: 4 },
 
   emptyState: { alignItems: 'center', marginTop: 50 },
   emptyText: { color: '#9CA3AF', fontSize: 16 },

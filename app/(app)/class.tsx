@@ -18,12 +18,13 @@ import {
 import {
   ClassSectionDTO,
   SubjectDTO,
-  TeacherDTO, // Imported TeacherDTO
+  TeacherDTO,
   createClassSection,
   deleteClassSection,
   getAllClassSections,
   getAllSubjects,
-  getAllTeachers
+  getAllTeachers,
+  updateClassSection
 } from '../../src/api/adminApi';
 import { studentApi } from '../../src/api/axiosInstance';
 import { useAuth } from '../../src/context/AuthContext';
@@ -33,7 +34,6 @@ export default function ClassScreen() {
   const router = useRouter();
   const user = state.user;
   
-  // --- RESPONSIVE GRID LOGIC ---
   const { width } = useWindowDimensions();
   const CONTAINER_PADDING = 20;
   const GAP = 16; 
@@ -43,18 +43,16 @@ export default function ClassScreen() {
 
   const availableWidth = width - (CONTAINER_PADDING * 2);
   const cardWidth = (availableWidth - ((numColumns - 1) * GAP)) / numColumns;
-  // -----------------------------
 
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState<ClassSectionDTO[]>([]);
   
-  // Dropdown Data Typed correctly
   const [teachersList, setTeachersList] = useState<TeacherDTO[]>([]);
   const [subjectsList, setSubjectsList] = useState<SubjectDTO[]>([]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  
   // Form State
   const [className, setClassName] = useState('');
   const [section, setSection] = useState('');
@@ -62,10 +60,14 @@ export default function ClassScreen() {
   const [capacity, setCapacity] = useState('40');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
-
-  // UI State for Dropdowns
+  
+  // UI Toggles
   const [showTeacherDropdown, setShowTeacherDropdown] = useState(false);
   const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
+
+  // Edit Mode State
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingClassId, setEditingClassId] = useState<string | null>(null);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -96,7 +98,7 @@ export default function ClassScreen() {
     fetchAllData();
   }, [user, state.status]);
 
-  const handleCreate = async () => {
+  const handleCreateOrUpdate = async () => {
     if (!className || !section || !academicYear) {
       Alert.alert("Error", "Please fill all required fields");
       return;
@@ -104,37 +106,72 @@ export default function ClassScreen() {
 
     setIsSubmitting(true);
     try {
-      // 1. Create Class Section
-      const newClass = await createClassSection({
+      const classData = {
         className,
         section,
         academicYear,
         capacity: parseInt(capacity),
-        classTeacherId: selectedTeacherId || undefined
-      });
+        classTeacherId: selectedTeacherId || undefined,
+        subjectIds: selectedSubjectIds // Include subjects in payload if API supports
+      };
 
-      // 2. Assign Subjects (if selected)
-      if (selectedSubjectIds.length > 0 && newClass.classSectionId) {
-          try {
-            await studentApi.post('/subject/assign', {
-                classSectionId: newClass.classSectionId,
-                subjectIds: selectedSubjectIds,
-                teacherId: null 
-            });
-          } catch (err) {
-             console.log("Subject assignment skipped or handled by backend");
+      if (isEditMode && editingClassId) {
+          // --- UPDATE MODE ---
+          await updateClassSection(editingClassId, classData);
+          
+          // Re-assign subjects explicitly if needed (depending on backend logic)
+          if (selectedSubjectIds.length > 0) {
+             try {
+                await studentApi.put('/subject/assign', {
+                    classSectionId: editingClassId,
+                    subjectIds: selectedSubjectIds,
+                    teacherId: null 
+                });
+             } catch (err) { console.log("Subject update error (optional)", err); }
           }
+
+          Alert.alert("Success", "Class Updated Successfully!");
+      } else {
+          // --- CREATE MODE ---
+          const newClass = await createClassSection(classData);
+
+          // Assign Subjects (if selected)
+          if (selectedSubjectIds.length > 0 && newClass.classSectionId) {
+              try {
+                await studentApi.post('/subject/assign', {
+                    classSectionId: newClass.classSectionId,
+                    subjectIds: selectedSubjectIds,
+                    teacherId: null 
+                });
+              } catch (err) {
+                 console.log("Subject assignment skipped or handled by backend");
+              }
+          }
+          Alert.alert("Success", "Class Created Successfully!");
       }
 
-      Alert.alert("Success", "Class Created Successfully!");
       setModalVisible(false);
       resetForm();
       fetchAllData(); 
     } catch (e: any) {
-      Alert.alert("Error", e.response?.data?.message || "Failed to create class");
+      Alert.alert("Error", e.response?.data?.message || (isEditMode ? "Failed to update class" : "Failed to create class"));
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const openEditModal = (item: ClassSectionDTO) => {
+      setIsEditMode(true);
+      setEditingClassId(item.classSectionId!);
+      
+      setClassName(item.className);
+      setSection(item.section);
+      setAcademicYear(item.academicYear);
+      setCapacity(item.capacity ? item.capacity.toString() : '40');
+      setSelectedTeacherId(item.classTeacherId || '');
+      setSelectedSubjectIds(item.subjectIds || []);
+      
+      setModalVisible(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -167,6 +204,8 @@ export default function ClassScreen() {
     setSelectedSubjectIds([]);
     setShowTeacherDropdown(false);
     setShowSubjectDropdown(false);
+    setIsEditMode(false);
+    setEditingClassId(null);
   };
 
   const toggleSubjectSelection = (id: string) => {
@@ -190,18 +229,38 @@ export default function ClassScreen() {
     <View style={[
         styles.itemContainer, 
         isWeb && { 
-            width: `${100 / numColumns}%`, // CHANGE: Width ni dynamic ga marcham based on columns
+            width: `${100 / numColumns}%`, 
             paddingHorizontal: 10, 
             marginBottom: 20 
         }
     ]}>
         <View style={styles.card}>
-            <View style={styles.cardIcon}>
-                <Ionicons name="easel-outline" size={24} color="#FFF" />
+            {/* Header Row: Icon + Name + Actions */}
+            <View style={styles.cardHeader}>
+                <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
+                    <View style={styles.cardIcon}>
+                        <Ionicons name="easel-outline" size={24} color="#FFF" />
+                    </View>
+                    <View>
+                        <Text style={styles.className}>{item.className} - {item.section}</Text>
+                        <Text style={styles.classDetails}>Year: {item.academicYear}</Text>
+                    </View>
+                </View>
+
+                {/* Actions (Edit & Delete) at Top Right */}
+                <View style={styles.actionRow}>
+                    <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconBtn}>
+                        <Ionicons name="create-outline" size={20} color="#2563EB" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleDelete(item.classSectionId!)} style={styles.iconBtn}>
+                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                </View>
             </View>
+
+            <View style={styles.divider} />
+
             <View style={styles.cardContent}>
-                <Text style={styles.className}>{item.className} - {item.section}</Text>
-                <Text style={styles.classDetails}>Year: {item.academicYear}</Text>
                 <Text style={styles.classDetails}>
                 Strength: {item.currentStrength || 0} / {item.capacity}
                 </Text>
@@ -209,9 +268,6 @@ export default function ClassScreen() {
                 Teacher: {item.classTeacherName || 'Not Assigned'}
                 </Text>
             </View>
-            <TouchableOpacity onPress={() => handleDelete(item.classSectionId!)} style={styles.deleteBtn}>
-                <Ionicons name="trash-outline" size={20} color="#EF4444" />
-            </TouchableOpacity>
         </View>
     </View>
   );
@@ -220,7 +276,7 @@ export default function ClassScreen() {
     <View style={styles.container}>
       <View style={[styles.headerRow, !isWeb && styles.headerRowMobile]}>
         <Text style={styles.title}>Class Management</Text>
-        <TouchableOpacity style={[styles.addBtn, !isWeb && styles.addBtnMobile]} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity style={[styles.addBtn, !isWeb && styles.addBtnMobile]} onPress={() => { resetForm(); setModalVisible(true); }}>
           <Ionicons name="add" size={20} color="#FFF" />
           <Text style={styles.addBtnText}>Add Class</Text>
         </TouchableOpacity>
@@ -246,7 +302,7 @@ export default function ClassScreen() {
           <View style={styles.modalContent}>
             
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create New Class</Text>
+              <Text style={styles.modalTitle}>{isEditMode ? "Edit Class" : "Create New Class"}</Text>
               <TouchableOpacity onPress={() => { setModalVisible(false); resetForm(); }}>
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
@@ -307,7 +363,7 @@ export default function ClassScreen() {
                                     key={t.teacherId} 
                                     style={[styles.dropdownItem, selectedTeacherId === t.teacherId && styles.dropdownItemSelected]}
                                     onPress={() => {
-                                        setSelectedTeacherId(t.teacherId || ''); // SAFE NOW
+                                        setSelectedTeacherId(t.teacherId || ''); 
                                         setShowTeacherDropdown(false);
                                     }}
                                 >
@@ -355,13 +411,13 @@ export default function ClassScreen() {
 
                 <TouchableOpacity 
                 style={styles.submitBtn} 
-                onPress={handleCreate}
+                onPress={handleCreateOrUpdate}
                 disabled={isSubmitting}
                 >
                 {isSubmitting ? (
                     <ActivityIndicator color="#FFF" />
                 ) : (
-                    <Text style={styles.submitBtnText}>Create Class</Text>
+                    <Text style={styles.submitBtnText}>{isEditMode ? "Update Class" : "Create Class"}</Text>
                 )}
                 </TouchableOpacity>
             </ScrollView>
@@ -395,17 +451,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF', 
     borderRadius: 12, 
     padding: 16, 
-    flexDirection: 'row',
-    alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
 
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  cardContent: { flex: 1 },
+  
+  cardContent: { marginTop: 10 },
+  
   className: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
   classDetails: { fontSize: 13, color: '#6B7280', marginTop: 2 },
   teacherText: { fontSize: 13, marginTop: 4, fontWeight: '600' },
-  deleteBtn: { padding: 8 },
+  
+  actionRow: { flexDirection: 'row', gap: 10 },
+  iconBtn: { padding: 4 },
+  
+  divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
 
   emptyState: { alignItems: 'center', marginTop: 50 },
   emptyText: { color: '#9CA3AF', fontSize: 16 },

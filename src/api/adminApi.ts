@@ -16,14 +16,44 @@ export interface ClassSectionDTO {
 
 export interface StudentDTO {
   studentId: string;
+  admissionNumber?: string;
   fullName: string;
-  rollNumber: string;
+  dateOfBirth?: string;
+  gender?: string;
+  bloodGroup?: string;
+  nationality?: string;
+  religion?: string;
+  category?: string;
+  aadhaarNumber?: string;
+
   grade: string;
   section: string;
   classSectionId: string;
-  contactNumber: string;
+  academicYear?: string;
+
+  joiningDate?: string;
+  rollNumber: string;
+  
+  contactNumber?: string;
+  email?: string;
+  
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+
   fatherName: string;
+  fatherContact?: string;
+  motherName?: string;
+  motherContact?: string;
+  guardianName?: string;
+  guardianContact?: string;
+
+  emergencyContactName?: string;
+  emergencyContactNumber?: string;
+
   profileImageUrl?: string;
+  active?: boolean;
 }
 
 export interface AdmissionDTO {
@@ -35,7 +65,6 @@ export interface AdmissionDTO {
   admissionDate: string;
   status: string;
   photoUrl?: string;
-  // Add other fields if needed for display
 }
 
 export interface SubjectDTO {
@@ -60,13 +89,11 @@ export const submitAdmission = async (admissionData: any, photoUri?: string) => 
   try {
     const formData = new FormData();
 
-    // 1. Append JSON Data
     if (Platform.OS === 'web') {
       // Web needs Blob
       const jsonBlob = new Blob([JSON.stringify(admissionData)], { type: 'application/json' });
       formData.append('data', jsonBlob as any);
     } else {
-      // Mobile sends as String (Backend should accept this if configured correctly)
       formData.append('data', JSON.stringify(admissionData));
     }
 
@@ -80,30 +107,25 @@ export const submitAdmission = async (admissionData: any, photoUri?: string) => 
       } else {
         // Mobile Code (Android/iOS)
         const filename = photoUri.split('/').pop() || 'photo.jpg';
-        
-        // Fix file type extension
         const match = /\.(\w+)$/.exec(filename);
         const type = match ? `image/${match[1]}` : `image/jpeg`;
 
-        // Android needs 'file://', iOS sometimes doesn't. This ensures it works.
         const uri = Platform.OS === 'android' ? photoUri : photoUri.replace('file://', '');
 
         formData.append('photo', {
           uri: uri,
           name: filename,
-          type: type, // Explicit type is mandatory for Android
+          type: type,
         } as any);
       }
     }
 
-    // 3. Send Request
-    // Note: 'Content-Type' header REMOVED to let Axios set boundary automatically
     const response = await studentApi.post('/admission', formData, {
       headers: {
         'Accept': 'application/json',
       },
       transformRequest: (data) => {
-        return data; // Crucial: Prevents Axios from destroying FormData
+        return data; 
       },
     });
 
@@ -250,3 +272,100 @@ export const getAllStudents = async (): Promise<StudentDTO[]> => {
   }
 };
 
+// --- SUBJECT UPDATES ---
+// Edit Subject
+export const updateSubject = async (subjectId: string, data: SubjectDTO): Promise<SubjectDTO> => {
+  try {
+    // Backend: PUT /api/student/subject/{subjectId}
+    const response = await studentApi.put<SubjectDTO>(`/subject/${subjectId}`, data);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating subject:", error);
+    throw error;
+  }
+};
+
+// --- TEACHER UPDATES ---
+// Edit Teacher
+export const updateTeacher = async (teacherId: string, data: TeacherDTO): Promise<TeacherDTO> => {
+  try {
+    // Backend: PUT /api/student/teacher/{teacherId}
+    const response = await studentApi.put<TeacherDTO>(`/teacher/${teacherId}`, data);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating teacher:", error);
+    throw error;
+  }
+};
+
+// --- CLASS UPDATES ---
+// Edit Class Section
+export const updateClassSection = async (classSectionId: string, data: ClassSectionDTO): Promise<ClassSectionDTO> => {
+  try {
+    // Backend: PUT /api/student/class-sections/{classSectionId}
+    const response = await studentApi.put<ClassSectionDTO>(`/class-sections/${classSectionId}`, data);
+    return response.data;
+  } catch (error) {
+    console.error("Error updating class section:", error);
+    throw error;
+  }
+};
+
+// --- STUDENT UPDATES & DELETE ---
+// Edit Student (Supports Photo Update)
+export const updateStudent = async (studentId: string, studentData: any, photoUri?: string) => {
+  try {
+    const formData = new FormData();
+
+    if (Platform.OS === 'web') {
+      // Web: Convert JSON to Blob
+      const jsonBlob = new Blob([JSON.stringify(studentData)], { type: 'application/json' });
+      formData.append('data', jsonBlob as any);
+      
+      // Web: Append Photo if exists
+      if (photoUri && photoUri.startsWith('blob:')) {
+        const response = await fetch(photoUri);
+        const blob = await response.blob();
+        formData.append('photo', blob, 'updated_photo.jpg');
+      }
+    } else {
+      // Mobile: Standard JSON stringify
+      formData.append('data', JSON.stringify(studentData));
+
+      // Mobile: Append Photo
+      if (photoUri && !photoUri.startsWith('http')) { // Only if it's a new local image
+        const filename = photoUri.split('/').pop() || 'photo.jpg';
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+        formData.append('photo', {
+          uri: Platform.OS === 'android' ? photoUri : photoUri.replace('file://', ''),
+          name: filename,
+          type: type,
+        } as any);
+      }
+    }
+
+    // Backend: PUT /api/student/{studentId}
+    const response = await studentApi.put(`/${studentId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      transformRequest: (data) => data, // Prevents Axios from messing up FormData
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error("Error updating student:", error);
+    throw error;
+  }
+};
+
+// Delete Student
+export const deleteStudent = async (studentId: string) => {
+  try {
+    // Backend: DELETE /api/student/{studentId}
+    await studentApi.delete(`/${studentId}`);
+  } catch (error) {
+    console.error("Error deleting student:", error);
+    throw error;
+  }
+};

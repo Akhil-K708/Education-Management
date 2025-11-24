@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { deleteFromStorage, getFromStorage, saveToStorage } from '../utils/storage';
 
-const API_HOST = 'http://192.168.0.136:8080';
+const API_HOST = 'http://192.168.0.112:8080';
 const AUTH_REFRESH_URL = `${API_HOST}/api/auth/refresh-token`;
 
 function cloneFormData(formData: FormData): FormData {

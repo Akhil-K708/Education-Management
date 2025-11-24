@@ -49,3 +49,23 @@ export const getExamTimetable = async (examId: string, classSectionId: string): 
     return [];
   }
 };
+
+export const getTeacherSubjectExamTimetable = async (examId: string): Promise<ExamDaySchedule[]> => {
+  try {
+    const response = await studentApi.get<ExamDaySchedule[]>(`/exams/teacher/subject/${examId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching teacher subject exam timetable:", error);
+    return [];
+  }
+};
+
+export const getTeacherClassExamTimetable = async (examId: string): Promise<ExamDaySchedule[]> => {
+  try {
+    const response = await studentApi.get<ExamDaySchedule[]>(`/exams/teacher/${examId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching teacher class exam timetable (Teacher might not be a class teacher):", error);
+    return [];
+  }
+};
