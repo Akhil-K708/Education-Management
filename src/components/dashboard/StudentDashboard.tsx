@@ -11,7 +11,6 @@ import { getStudentDashboardData } from '../../api/dashboardApi';
 import {
   AttendanceChartData,
   ClassStats,
-  NoticeItem,
   StudentProfileInfo,
 } from '../../types/dashboard';
 import { AttendanceChart } from './AttendanceChart';
@@ -25,7 +24,7 @@ export const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<StudentProfileInfo | null>(null);
   const [classStats, setClassStats] = useState<ClassStats | null>(null);
-  const [notices, setNotices] = useState<NoticeItem[]>([]);
+  // const [notices, setNotices] = useState<NoticeItem[]>([]); // Removed: Notices are now fetched inside NoticeBoard
   const [attendanceChart, setAttendanceChart] = useState<AttendanceChartData | null>(null);
   
   const { width } = useWindowDimensions();
@@ -39,7 +38,7 @@ export const StudentDashboard = () => {
 
         setProfile(data.profile);
         setClassStats(data.classStats);
-        setNotices(data.notices);
+        // setNotices(data.notices); // Removed
         setAttendanceChart(data.attendanceChart);
       } catch (e) {
         console.error(e);
@@ -80,7 +79,8 @@ export const StudentDashboard = () => {
           <EventCalendar />
           <ClassStatsCard stats={classStats} />
           <AttendanceChart data={attendanceChart} />
-          <NoticeBoard notices={notices} />
+          {/* Updated: NoticeBoard fetches its own data */}
+          <NoticeBoard />
         </View>
       </ScrollView>
     );
@@ -132,7 +132,8 @@ export const StudentDashboard = () => {
           </View>
           
           <View style={styles.noticeWrapper}>
-            <NoticeBoard notices={notices} />
+            {/* Updated: NoticeBoard fetches its own data */}
+            <NoticeBoard />
           </View>
         </View>
       </View>

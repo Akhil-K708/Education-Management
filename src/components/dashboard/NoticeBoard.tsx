@@ -1,33 +1,76 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
-import { NoticeItem } from '../../types/dashboard';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { getAllNotices } from '../../api/noticeApi';
+import { Notice } from '../../types/notice';
 
-interface NoticeBoardProps {
-  notices: NoticeItem[];
-}
+export const NoticeBoard = () => {
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export const NoticeBoard = ({ notices }: NoticeBoardProps) => {
-  const renderItem = ({ item }: { item: NoticeItem }) => (
+  useEffect(() => {
+    const fetchNotices = async () => {
+      try {
+        const data = await getAllNotices();
+        // Sort by Date (Latest First)
+        const sorted = data.sort((a, b) => new Date(b.noticeDate).getTime() - new Date(a.noticeDate).getTime());
+        setNotices(sorted);
+      } catch (e) {
+        console.error("Failed to fetch notices");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotices();
+  }, []);
+
+  const getIconColor = (type: string) => {
+    switch (type) {
+      case 'HOLIDAY': return '#EF4444'; // Red
+      case 'EVENT': return '#F59E0B';   // Orange
+      default: return '#2563EB';        // Blue
+    }
+  };
+
+  const renderItem = ({ item }: { item: Notice }) => (
     <View style={styles.item}>
-      <View style={styles.iconContainer}>
-        <Ionicons name="megaphone-outline" size={24} color="#2563EB" />
+      <View style={[styles.iconContainer, { backgroundColor: getIconColor(item.noticeType) + '20' }]}>
+        <Ionicons name="notifications" size={20} color={getIconColor(item.noticeType)} />
       </View>
       <View style={styles.itemContent}>
-        <Text style={styles.itemTitle}>{item.title}</Text>
-        <Text style={styles.itemDescription}>{item.description}</Text>
+        <Text style={styles.itemTitle}>{item.noticeName}</Text>
+        <Text style={styles.itemDescription} numberOfLines={2}>{item.noticeDescription}</Text>
       </View>
-      <Text style={styles.itemDate}>{item.date}</Text>
+      <View style={styles.dateBox}>
+         <Text style={styles.itemDate}>{item.noticeDate}</Text>
+         <Text style={[styles.typeText, { color: getIconColor(item.noticeType) }]}>{item.noticeType}</Text>
+      </View>
     </View>
   );
 
+  if (loading) {
+    return (
+      <View style={[styles.card, { minHeight: 200, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="small" color="#F97316" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Notice Board</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Notice Board</Text>
+        <Ionicons name="megaphone-outline" size={20} color="#6B7280" />
+      </View>
+      
       <FlatList
         data={notices}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id || Math.random().toString()}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>No new notices.</Text>
+        }
       />
     </View>
   );
@@ -44,44 +87,69 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 3,
+    flex: 1, 
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    paddingBottom: 8
   },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#111827',
-    marginBottom: 16,
   },
   item: {
     flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    alignItems: 'flex-start',
     paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F9FAFB',
   },
   iconContainer: {
-    backgroundColor: '#DBEAFE',
     borderRadius: 20,
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    marginTop: 2
   },
   itemContent: {
     flex: 1,
     marginRight: 8,
   },
   itemTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
+    marginBottom: 2
   },
   itemDescription: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  itemDate: {
     fontSize: 12,
     color: '#6B7280',
   },
+  dateBox: {
+    alignItems: 'flex-end'
+  },
+  itemDate: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginBottom: 2
+  },
+  typeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    textTransform: 'uppercase'
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+    marginTop: 20
+  }
 });

@@ -52,7 +52,8 @@ export const AdminDashboard = () => {
     );
   }
 
-  const { stats, earningsChart, studentDemographics, notices } = data;
+  // 'notices' ni ikkada destructure cheyyalsina avasaram ledu
+  const { stats, earningsChart, studentDemographics } = data;
 
   const renderStats = () => (
     <View style={styles.statsContainer}>
@@ -90,7 +91,8 @@ export const AdminDashboard = () => {
         <EarningsChart data={earningsChart} />
         <EventCalendar />
         <StudentDemographicsChart data={studentDemographics} />
-        <NoticeBoard notices={notices} />
+        {/* Updated: Direct component call without props */}
+        <NoticeBoard />
       </View>
     );
   }
@@ -101,7 +103,8 @@ export const AdminDashboard = () => {
       <View style={styles.webContainer}>
         <View style={styles.leftColumn}>
           <EarningsChart data={earningsChart} />
-          <NoticeBoard notices={notices} />
+          {/* Updated: Direct component call without props */}
+          <NoticeBoard />
         </View>
         <View style={styles.rightColumn}>
           <EventCalendar />
