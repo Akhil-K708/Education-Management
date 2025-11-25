@@ -22,7 +22,10 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+ 
+   
+      "usesCleartextTraffic": true
     },
     "web": {
       "bundler": "metro",
@@ -38,3 +41,4 @@
     }
   }
 }
+ 

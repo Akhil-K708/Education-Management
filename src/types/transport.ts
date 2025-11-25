@@ -1,27 +1,33 @@
-export interface Driver {
-  id: string;
-  name: string;
-  contactNumber: string;
-  photoUrl?: string;
-}
-
-export interface Vehicle {
-  vehicleNumber: string; 
-  busNumber: string;     
-  capacity: number;
-}
-
-export interface RoutePoint {
-  stopName: string;
-  pickupTime: string;
-  dropTime: string;
+export interface TransportRoute {
+  routeId?: string;
+  routeName: string;
+  pickupStartTime: string;
+  dropStartTime: string;
+  vehicleName: string;
+  vehicleNumber: string;
+  driverName: string;
+  driverPhone: string;
 }
 
 export interface StudentTransportDetails {
-  routeId: string;
+  studentId: string;
   routeName: string;
-  vehicle: Vehicle;
-  driver: Driver;
-  myStop: RoutePoint;
-  feeStatus: 'PAID' | 'PENDING' | 'OVERDUE';
+  pickupStop: string;
+  dropStop: string;
+  pickupTime: string;
+  dropTime: string;
+  vehicleName: string;
+  vehicleNumber: string;
+  driverName: string;
+  driverPhone: string;
+  feeStatus: string;
+}
+
+export interface TransportAssignRequest {
+  routeId: string;
+  pickupStop: string;
+  dropStop: string;
+  pickupTime: string;
+  dropTime: string;
+  feeStatus: string;
 }

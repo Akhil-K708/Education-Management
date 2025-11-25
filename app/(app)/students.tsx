@@ -4,36 +4,36 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from 'react-native';
 import {
-  AdmissionDTO,
-  approveAdmission,
-  ClassSectionDTO,
-  deleteStudent,
-  getAllClassSections,
-  getAllStudents,
-  getPendingAdmissions,
-  rejectAdmission,
-  StudentDTO,
-  submitAdmission,
-  updateStudent
+    AdmissionDTO,
+    approveAdmission,
+    ClassSectionDTO,
+    deleteStudent,
+    getAllClassSections,
+    getAllStudents,
+    getPendingAdmissions,
+    rejectAdmission,
+    StudentDTO,
+    submitAdmission,
+    updateStudent
 } from '../../src/api/adminApi';
 import { useAuth } from '../../src/context/AuthContext';
 
-const API_BASE_URL = 'http://192.168.0.112:8080'; // Backend URL for Images
+const API_BASE_URL = 'http://192.168.0.113:8080'; // Backend URL for Images
 
 // --- HELPER COMPONENTS ---
 const InputField = ({ label, value, onChange, placeholder, keyboardType = 'default' }: any) => (
@@ -146,10 +146,19 @@ export default function StudentsScreen() {
         getAllClassSections()
       ]);
       
-      setAllStudents(students);
-      setFilteredStudents(students);
+      // Sort Students by ID (Ascending: 001, 002...)
+      const sortedStudents = students.sort((a, b) => a.studentId.localeCompare(b.studentId));
+      setAllStudents(sortedStudents);
       
-      // Sort Admissions: Latest First
+      // Initial Filter (Defaults to ALL)
+      if (selectedClassId === 'ALL') {
+          setFilteredStudents(sortedStudents);
+      } else {
+          const filtered = sortedStudents.filter(s => s.classSectionId === selectedClassId);
+          setFilteredStudents(filtered);
+      }
+      
+      // Sort Admissions: Latest First (Date Descending)
       const sortedAdmissions = admissions.sort((a, b) => {
           const dateA = new Date(a.admissionDate).getTime();
           const dateB = new Date(b.admissionDate).getTime();
@@ -176,11 +185,15 @@ export default function StudentsScreen() {
   }, [user, state.status]);
 
   useEffect(() => {
+    let filtered = [];
     if (selectedClassId === 'ALL') {
-      setFilteredStudents(allStudents);
+      filtered = [...allStudents];
     } else {
-      setFilteredStudents(allStudents.filter(s => s.classSectionId === selectedClassId));
+      filtered = allStudents.filter(s => s.classSectionId === selectedClassId);
     }
+    // Ensure filtering maintains ID Sort Order
+    filtered.sort((a, b) => a.studentId.localeCompare(b.studentId));
+    setFilteredStudents(filtered);
   }, [selectedClassId, allStudents]);
 
   const pickImage = async () => {

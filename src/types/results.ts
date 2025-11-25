@@ -21,5 +21,20 @@ export interface ExamResultData {
     rank: string;
   };
   subjects: SubjectResult[];
-  finalMessage: string; // e.g., "Congratulations you passed with distinction"
+  finalMessage: string; 
+}
+
+// --- NEW TYPES FOR TEACHER MARKS ENTRY ---
+export interface MarksEntryItem {
+  studentId: string;
+  marksObtained: number;
+  attendanceStatus: 'PRESENT' | 'ABSENT';
+  remarks: string;
+}
+
+export interface SubjectMarksEntryRequest {
+  examId: string;
+  classSectionId: string;
+  subjectId: string;
+  entries: MarksEntryItem[];
 }

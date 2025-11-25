@@ -29,6 +29,26 @@ import {
 import { studentApi } from '../../src/api/axiosInstance';
 import { useAuth } from '../../src/context/AuthContext';
 
+// --- SORTING HELPER ---
+const getClassSortRank = (name: string) => {
+  const n = name.toLowerCase().trim();
+  
+  // 1. Pre-Primary Priority
+  if (n.includes('nurs')) return 0; // Nursery
+  if (n === 'lkg' || n === 'pp1') return 1;
+  if (n === 'ukg' || n === 'pp2') return 2;
+  
+  // 2. Numeric Classes (1 to 12)
+  // Check if it starts with a number (e.g., "1", "10")
+  const num = parseInt(n);
+  if (!isNaN(num)) {
+      return 10 + num; // Offset by 10 to keep after pre-primary
+  }
+
+  // 3. Departments / Others (CSE, ECE etc.) -> High Rank to put at bottom or sort alphabetically among themselves
+  return 1000; 
+};
+
 export default function ClassScreen() {
   const { state } = useAuth();
   const router = useRouter();
@@ -77,7 +97,26 @@ export default function ClassScreen() {
           getAllTeachers(),
           getAllSubjects()
       ]);
-      setClasses(cls);
+
+      // --- SORTING LOGIC APPLIED HERE ---
+      const sortedClasses = cls.sort((a, b) => {
+          const rankA = getClassSortRank(a.className);
+          const rankB = getClassSortRank(b.className);
+
+          // If ranks are different, sort by rank
+          if (rankA !== rankB) {
+              // If both are departments (Rank 1000), sort alphabetically (CSE < ECE)
+              if (rankA === 1000 && rankB === 1000) {
+                  return a.className.localeCompare(b.className);
+              }
+              return rankA - rankB;
+          }
+
+          // If Class Name is same (e.g., both "1"), sort by Section (A < B)
+          return (a.section || '').localeCompare(b.section || '');
+      });
+
+      setClasses(sortedClasses);
       setTeachersList(tch);
       setSubjectsList(sub);
     } catch (e) {
@@ -112,14 +151,13 @@ export default function ClassScreen() {
         academicYear,
         capacity: parseInt(capacity),
         classTeacherId: selectedTeacherId || undefined,
-        subjectIds: selectedSubjectIds // Include subjects in payload if API supports
+        subjectIds: selectedSubjectIds 
       };
 
       if (isEditMode && editingClassId) {
           // --- UPDATE MODE ---
           await updateClassSection(editingClassId, classData);
           
-          // Re-assign subjects explicitly if needed (depending on backend logic)
           if (selectedSubjectIds.length > 0) {
              try {
                 await studentApi.put('/subject/assign', {
@@ -135,7 +173,6 @@ export default function ClassScreen() {
           // --- CREATE MODE ---
           const newClass = await createClassSection(classData);
 
-          // Assign Subjects (if selected)
           if (selectedSubjectIds.length > 0 && newClass.classSectionId) {
               try {
                 await studentApi.post('/subject/assign', {

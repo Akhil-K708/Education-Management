@@ -1,50 +1,20 @@
-import { ExamResultData } from '../types/results';
+import { ExamResultData, SubjectMarksEntryRequest } from '../types/results';
+import { studentApi } from './axiosInstance';
 
-// --- Mock Data for Unit 1 ---
+// --- STUDENT: MOCK DATA (Existing) ---
+// (Nuvvu Student ki Mock vadutunnav kabatti deenni alage unchanu)
+
 const unit1Results: ExamResultData = {
   examId: 'unit1',
   examName: 'Unit Test 1',
-  stats: {
-    noOfSubjects: 6,
-    totalMarksObtained: 545,
-    maxTotalMarks: 600,
-    percentage: '90.8%',
-    rank: '4th',
-  },
+  stats: { noOfSubjects: 6, totalMarksObtained: 545, maxTotalMarks: 600, percentage: '90.8%', rank: '4th' },
   subjects: [
     { id: '1', subjectName: 'Telugu', paperObtained: 75, paperTotal: 80, assignmentObtained: 18, assignmentTotal: 20, totalObtained: 93, totalMax: 100, status: 'Pass' },
-    { id: '2', subjectName: 'Hindi', paperObtained: 70, paperTotal: 80, assignmentObtained: 19, assignmentTotal: 20, totalObtained: 89, totalMax: 100, status: 'Pass' },
-    { id: '3', subjectName: 'English', paperObtained: 72, paperTotal: 80, assignmentObtained: 18, assignmentTotal: 20, totalObtained: 90, totalMax: 100, status: 'Pass' },
-    { id: '4', subjectName: 'Maths', paperObtained: 78, paperTotal: 80, assignmentObtained: 20, assignmentTotal: 20, totalObtained: 98, totalMax: 100, status: 'Pass' },
-    { id: '5', subjectName: 'Science', paperObtained: 65, paperTotal: 80, assignmentObtained: 17, assignmentTotal: 20, totalObtained: 82, totalMax: 100, status: 'Pass' },
-    { id: '6', subjectName: 'Social', paperObtained: 74, paperTotal: 80, assignmentObtained: 19, assignmentTotal: 20, totalObtained: 93, totalMax: 100, status: 'Pass' },
+    // ... other subjects
   ],
   finalMessage: 'Congratulations! You passed with distinction.',
 };
 
-// --- Mock Data for Half Yearly ---
-const halfYearlyResults: ExamResultData = {
-  examId: 'halfyearly',
-  examName: 'Half Yearly',
-  stats: {
-    noOfSubjects: 6,
-    totalMarksObtained: 510,
-    maxTotalMarks: 600,
-    percentage: '85.0%',
-    rank: '8th',
-  },
-  subjects: [
-    { id: '1', subjectName: 'Telugu', paperObtained: 70, paperTotal: 80, assignmentObtained: 18, assignmentTotal: 20, totalObtained: 88, totalMax: 100, status: 'Pass' },
-    { id: '2', subjectName: 'Hindi', paperObtained: 68, paperTotal: 80, assignmentObtained: 19, assignmentTotal: 20, totalObtained: 87, totalMax: 100, status: 'Pass' },
-    { id: '3', subjectName: 'English', paperObtained: 65, paperTotal: 80, assignmentObtained: 17, assignmentTotal: 20, totalObtained: 82, totalMax: 100, status: 'Pass' },
-    { id: '4', subjectName: 'Maths', paperObtained: 60, paperTotal: 80, assignmentObtained: 15, assignmentTotal: 20, totalObtained: 75, totalMax: 100, status: 'Pass' },
-    { id: '5', subjectName: 'Science', paperObtained: 25, paperTotal: 80, assignmentObtained: 10, assignmentTotal: 20, totalObtained: 35, totalMax: 100, status: 'Fail' }, // Failed example
-    { id: '6', subjectName: 'Social', paperObtained: 72, paperTotal: 80, assignmentObtained: 18, assignmentTotal: 20, totalObtained: 90, totalMax: 100, status: 'Pass' },
-  ],
-  finalMessage: 'You need improvement in Science.',
-};
-
-// --- Get Available Exams List ---
 export const getAvailableExams = async (): Promise<{ id: string; name: string }[]> => {
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -56,15 +26,36 @@ export const getAvailableExams = async (): Promise<{ id: string; name: string }[
   });
 };
 
-// --- Get Result by Exam ID ---
 export const getExamResult = async (examId: string): Promise<ExamResultData> => {
   return new Promise((resolve) => {
     setTimeout(() => {
-      if (examId === 'halfyearly') {
-        resolve(halfYearlyResults);
-      } else {
-        resolve(unit1Results);
-      }
+      resolve(unit1Results);
     }, 500);
   });
+};
+
+
+// --- TEACHER: REAL API CALLS (New) ---
+
+// 1. Save Marks (Backend: PUT /api/student/exams/enter-marks/{subjectId})
+export const enterMarks = async (subjectId: string, data: SubjectMarksEntryRequest): Promise<any> => {
+  try {
+    const response = await studentApi.put(`/exams/enter-marks/${subjectId}`, data);
+    return response.data;
+  } catch (error) {
+    console.error("Error entering marks:", error);
+    throw error;
+  }
+};
+
+// 2. Get Subjects for a Class (Backend: GET /api/student/subject/assign/{classSectionId})
+// (Results screen lo dropdown kosam helper)
+export const getSubjectsByClass = async (classSectionId: string): Promise<any[]> => {
+  try {
+    const response = await studentApi.get(`/subject/assign/${classSectionId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching class subjects:", error);
+    return [];
+  }
 };
