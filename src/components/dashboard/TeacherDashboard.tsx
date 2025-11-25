@@ -356,4 +356,4 @@ const styles = StyleSheet.create({
   // Right Column
   calendarWrapper: { width: '100%' },
   noticeWrapper: { width: '100%' },
-});
+});   
