@@ -110,6 +110,7 @@ export default function StudentsScreen() {
     religion: '',
     category: '',
     aadhaarNumber: '',
+    totalFee: '', // Added Total Fee Field
     gradeApplied: '',
     academicYear: '2025-2026',
     previousSchool: '',
@@ -228,6 +229,7 @@ export default function StudentsScreen() {
                 religion: admissionForm.religion,
                 category: admissionForm.category,
                 aadhaarNumber: admissionForm.aadhaarNumber,
+                totalFee: admissionForm.totalFee ? parseFloat(admissionForm.totalFee) : null, // Added
                 fatherName: admissionForm.fatherName,
                 fatherContact: admissionForm.fatherContact,
                 motherName: admissionForm.motherName,
@@ -249,7 +251,12 @@ export default function StudentsScreen() {
             Alert.alert("Success", "Student Updated Successfully!");
         } else {
             // --- CREATE MODE ---
-            await submitAdmission(admissionForm, selectedImage || undefined);
+            // Prepare payload with correct types
+            const payload = {
+                ...admissionForm,
+                totalFee: admissionForm.totalFee ? parseFloat(admissionForm.totalFee) : null // Added
+            };
+            await submitAdmission(payload, selectedImage || undefined);
             Alert.alert("Success", "Admission Submitted! Pending for Approval.");
         }
         
@@ -278,6 +285,8 @@ export default function StudentsScreen() {
           religion: student.religion || '',
           category: student.category || '',
           aadhaarNumber: student.aadhaarNumber || '',
+          // Access totalFee safely (assuming backend provides it in StudentDTO)
+          totalFee: (student as any).totalFee ? (student as any).totalFee.toString() : '', 
           gradeApplied: student.grade || '',
           academicYear: student.academicYear || '2025-2026',
           fatherName: student.fatherName || '',
@@ -376,6 +385,7 @@ export default function StudentsScreen() {
         religion: '',
         category: '',
         aadhaarNumber: '',
+        totalFee: '', // Reset Total Fee
         gradeApplied: '',
         academicYear: '2025-2026',
         previousSchool: '',
@@ -797,9 +807,19 @@ export default function StudentsScreen() {
                 <InputField label="Academic Year" value={admissionForm.academicYear} onChange={(t:string) => setAdmissionForm({...admissionForm, academicYear: t})} placeholder="2025-2026" />
             </View>
 
-            <View style={styles.inputGroup}>
-                <Text style={styles.label}>Medium of Instruction</Text>
-                <TouchableOpacity style={styles.selectBtn} onPress={() => setActiveDropdown('MEDIUM')}><Text>{admissionForm.mediumOfInstruction || 'Select'}</Text></TouchableOpacity>
+            {/* NEW TOTAL FEE FIELD ADDED HERE */}
+            <View style={styles.formRow}>
+                <InputField 
+                    label="Total Fee" 
+                    value={admissionForm.totalFee} 
+                    onChange={(t:string) => setAdmissionForm({...admissionForm, totalFee: t})} 
+                    placeholder="Amount" 
+                    keyboardType="numeric" 
+                />
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Medium of Instruction</Text>
+                    <TouchableOpacity style={styles.selectBtn} onPress={() => setActiveDropdown('MEDIUM')}><Text>{admissionForm.mediumOfInstruction || 'Select'}</Text></TouchableOpacity>
+                </View>
             </View>
 
             <View style={styles.formRow}>

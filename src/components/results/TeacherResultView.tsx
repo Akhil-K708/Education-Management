@@ -117,7 +117,31 @@ export default function TeacherResultView() {
       }
   };
 
+  // 🔥 UPDATE MARK WITH VALIDATION LOGIC 🔥
   const updateMark = (studentId: string, field: 'paper' | 'assign', value: string) => {
+      // Allow empty string (deleting)
+      if (value === '') {
+          setMarksInput(prev => ({
+              ...prev,
+              [studentId]: { ...prev[studentId], [field]: value }
+          }));
+          return;
+      }
+
+      const numValue = parseFloat(value);
+      const maxPaper = parseFloat(paperTotal) || 0;
+      const maxAssign = parseFloat(assignTotal) || 0;
+
+      // Validation: Check if exceeds max limits
+      if (field === 'paper' && numValue > maxPaper) {
+          Alert.alert("Invalid Input", `Paper marks cannot be more than ${maxPaper}`);
+          return; // Stop update
+      }
+      if (field === 'assign' && numValue > maxAssign) {
+          Alert.alert("Invalid Input", `Assignment marks cannot be more than ${maxAssign}`);
+          return; // Stop update
+      }
+
       setMarksInput(prev => ({
           ...prev,
           [studentId]: {
@@ -141,7 +165,6 @@ export default function TeacherResultView() {
              const aObt = input?.assign ? parseFloat(input.assign) : 0;
              
              // Logic: If marks entered -> PRESENT, else ABSENT
-             // Or you can implement explicit Absent checkbox later
              const isPresent = input?.paper !== '' || input?.assign !== '';
 
              return {
@@ -165,13 +188,15 @@ export default function TeacherResultView() {
           await enterMarks(selectedSubjectId, payload);
 
           Alert.alert("Success", "Marks saved successfully!");
-          // Optional: Clear Data or Navigate back
       } catch(e) {
           Alert.alert("Error", "Failed to save marks.");
       } finally {
           setLoading(false);
       }
   };
+
+  // Calculate Grand Total based on current inputs
+  const grandTotalMax = (parseFloat(paperTotal) || 0) + (parseFloat(assignTotal) || 0);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{paddingBottom: 60}}>
@@ -257,6 +282,10 @@ export default function TeacherResultView() {
                           onChangeText={setAssignTotal} 
                           keyboardType="numeric"
                       />
+                  </View>
+                  <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+                      <Text style={styles.maxLabel}>Grand Total</Text>
+                      <Text style={styles.grandTotalText}>{grandTotalMax}</Text>
                   </View>
               </View>
 
@@ -347,6 +376,7 @@ const styles = StyleSheet.create({
   maxMarksRow: { flexDirection: 'row', gap: 16, marginBottom: 12 },
   maxLabel: { fontSize: 12, color: '#6B7280', marginBottom: 4 },
   maxInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 6, padding: 8, backgroundColor: '#F9FAFB', fontWeight: 'bold', color: '#1F2937' },
+  grandTotalText: { fontSize: 18, fontWeight: 'bold', color: '#2563EB', marginTop: 4 },
 
   divider: { height: 1, backgroundColor: '#E5E7EB', marginBottom: 12 },
 

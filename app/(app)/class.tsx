@@ -268,7 +268,6 @@ export default function ClassScreen() {
                                           {qualifiedTeachers.map(t => (
                                               <TouchableOpacity 
                                                   key={t.teacherId}
-                                                  // FIX: Added explicit marginBottom for Web
                                                   style={[
                                                       styles.miniChip, 
                                                       currentTeacherId === t.teacherId && styles.miniChipActive,
@@ -392,7 +391,11 @@ export default function ClassScreen() {
         {/* --- MANAGEMENT MODAL --- */}
         <Modal visible={manageModalVisible} transparent animationType="slide">
             <View style={styles.modalOverlay}>
-                <View style={[styles.modalContent, isWeb && {width: '70%', maxWidth: 800, height: '80%'}]}>
+                {/* FIX: Mobile now has explicit height handling */}
+                <View style={[
+                    styles.modalContent, 
+                    isWeb ? { width: '70%', maxWidth: 800, height: '80%' } : { height: '80%' }
+                ]}>
                     
                     <View style={styles.modalHeader}>
                         <Text style={styles.modalTitle}>
@@ -488,7 +491,6 @@ const styles = StyleSheet.create({
     marginRight: 6, 
     borderWidth: 1, 
     borderColor: '#E5E7EB'
-    // Fixed: Removed isWeb dependency from here to avoid crash
   },
   miniChipActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
   miniChipText: { fontSize: 12, color: '#4B5563' },
