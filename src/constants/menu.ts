@@ -23,7 +23,7 @@ export const teacherMenu: MenuItem[] = [
   { label: 'Attendance', iconName: 'calendar-outline', path: '/(app)/attendance' },
   { label: 'Assignments', iconName: 'document-text-outline', path: '/(app)/assignments' },
   { label: 'Exam Schedule', iconName: 'calendar-number-outline', path: '/(app)/examschedule' },
-  { label: 'Results', iconName: 'ribbon-outline', path: '/(app)/results' }, 
+  { label: 'Assign Marks', iconName: 'ribbon-outline', path: '/(app)/results' }, 
 ];
 
 export const studentMenu: MenuItem[] = [

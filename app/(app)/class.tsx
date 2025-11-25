@@ -12,42 +12,27 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  useWindowDimensions
+  useWindowDimensions,
+  View
 } from 'react-native';
 import {
+  assignStudentToClass,
+  assignSubjectTeacher,
   ClassSectionDTO,
-  SubjectDTO,
-  TeacherDTO,
+  ClassSubjectMappingDTO,
   createClassSection,
   deleteClassSection,
   getAllClassSections,
   getAllSubjects,
   getAllTeachers,
+  getSubjectMappings,
+  getUnassignedStudents,
+  StudentDTO,
+  SubjectDTO,
+  TeacherDTO,
   updateClassSection
 } from '../../src/api/adminApi';
-import { studentApi } from '../../src/api/axiosInstance';
 import { useAuth } from '../../src/context/AuthContext';
-
-// --- SORTING HELPER ---
-const getClassSortRank = (name: string) => {
-  const n = name.toLowerCase().trim();
-  
-  // 1. Pre-Primary Priority
-  if (n.includes('nurs')) return 0; // Nursery
-  if (n === 'lkg' || n === 'pp1') return 1;
-  if (n === 'ukg' || n === 'pp2') return 2;
-  
-  // 2. Numeric Classes (1 to 12)
-  // Check if it starts with a number (e.g., "1", "10")
-  const num = parseInt(n);
-  if (!isNaN(num)) {
-      return 10 + num; // Offset by 10 to keep after pre-primary
-  }
-
-  // 3. Departments / Others (CSE, ECE etc.) -> High Rank to put at bottom or sort alphabetically among themselves
-  return 1000; 
-};
 
 export default function ClassScreen() {
   const { state } = useAuth();
@@ -55,40 +40,37 @@ export default function ClassScreen() {
   const user = state.user;
   
   const { width } = useWindowDimensions();
-  const CONTAINER_PADDING = 20;
-  const GAP = 16; 
-
-  const numColumns = width > 1200 ? 4 : (width > 768 ? 3 : 1);
   const isWeb = width > 768;
-
-  const availableWidth = width - (CONTAINER_PADDING * 2);
-  const cardWidth = (availableWidth - ((numColumns - 1) * GAP)) / numColumns;
+  const numColumns = isWeb ? 3 : 1;
 
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState<ClassSectionDTO[]>([]);
-  
   const [teachersList, setTeachersList] = useState<TeacherDTO[]>([]);
   const [subjectsList, setSubjectsList] = useState<SubjectDTO[]>([]);
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // --- MANAGEMENT MODAL STATES ---
+  const [manageModalVisible, setManageModalVisible] = useState(false);
+  const [activeClass, setActiveClass] = useState<ClassSectionDTO | null>(null);
+  const [activeTab, setActiveTab] = useState<'DETAILS' | 'SUBJECTS' | 'STUDENTS'>('DETAILS');
   
-  // Form State
+  // Details Form
   const [className, setClassName] = useState('');
   const [section, setSection] = useState('');
   const [academicYear, setAcademicYear] = useState('2025-2026');
   const [capacity, setCapacity] = useState('40');
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
-  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
-  
-  // UI Toggles
-  const [showTeacherDropdown, setShowTeacherDropdown] = useState(false);
-  const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
+  const [classTeacherId, setClassTeacherId] = useState('');
 
-  // Edit Mode State
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingClassId, setEditingClassId] = useState<string | null>(null);
+  // Subject Mapping State
+  const [mappings, setMappings] = useState<ClassSubjectMappingDTO[]>([]);
+  const [mappingLoading, setMappingLoading] = useState(false);
 
+  // Student Assignment State
+  const [unassignedStudents, setUnassignedStudents] = useState<StudentDTO[]>([]);
+  const [studentLoading, setStudentLoading] = useState(false);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // --- FETCH DATA ---
   const fetchAllData = async () => {
     setLoading(true);
     try {
@@ -97,25 +79,8 @@ export default function ClassScreen() {
           getAllTeachers(),
           getAllSubjects()
       ]);
-
-      // --- SORTING LOGIC APPLIED HERE ---
-      const sortedClasses = cls.sort((a, b) => {
-          const rankA = getClassSortRank(a.className);
-          const rankB = getClassSortRank(b.className);
-
-          // If ranks are different, sort by rank
-          if (rankA !== rankB) {
-              // If both are departments (Rank 1000), sort alphabetically (CSE < ECE)
-              if (rankA === 1000 && rankB === 1000) {
-                  return a.className.localeCompare(b.className);
-              }
-              return rankA - rankB;
-          }
-
-          // If Class Name is same (e.g., both "1"), sort by Section (A < B)
-          return (a.section || '').localeCompare(b.section || '');
-      });
-
+      // Sort classes: 1, 2, ... 10
+      const sortedClasses = cls.sort((a, b) => a.className.localeCompare(b.className, undefined, {numeric: true}));
       setClasses(sortedClasses);
       setTeachersList(tch);
       setSubjectsList(sub);
@@ -129,406 +94,410 @@ export default function ClassScreen() {
   useEffect(() => {
     if (state.status === 'loading') return;
     if (!user || user.role !== 'ADMIN') {
-        const timer = setTimeout(() => {
-            router.replace('/(app)');
-        }, 0);
+        const timer = setTimeout(() => router.replace('/(app)'), 0);
         return () => clearTimeout(timer);
     }
     fetchAllData();
   }, [user, state.status]);
 
-  const handleCreateOrUpdate = async () => {
-    if (!className || !section || !academicYear) {
-      Alert.alert("Error", "Please fill all required fields");
-      return;
-    }
+  // --- OPEN MODAL HANDLERS ---
+  
+  const openCreateModal = () => {
+      setActiveClass(null);
+      setClassName(''); setSection(''); setCapacity('40'); setClassTeacherId('');
+      setActiveTab('DETAILS');
+      setManageModalVisible(true);
+  };
 
-    setIsSubmitting(true);
-    try {
-      const classData = {
-        className,
-        section,
-        academicYear,
-        capacity: parseInt(capacity),
-        classTeacherId: selectedTeacherId || undefined,
-        subjectIds: selectedSubjectIds 
-      };
+  const openManageModal = (cls: ClassSectionDTO) => {
+      setActiveClass(cls);
+      setClassName(cls.className);
+      setSection(cls.section);
+      setAcademicYear(cls.academicYear);
+      setCapacity(cls.capacity?.toString() || '40');
+      setClassTeacherId(cls.classTeacherId || '');
+      
+      // If opening existing class, default to SUBJECTS view for quick access
+      setActiveTab('SUBJECTS'); 
+      setManageModalVisible(true);
+      
+      // Fetch related data immediately
+      fetchMappings(cls.classSectionId!);
+      fetchUnassignedStudents(cls.className);
+  };
 
-      if (isEditMode && editingClassId) {
-          // --- UPDATE MODE ---
-          await updateClassSection(editingClassId, classData);
-          
-          if (selectedSubjectIds.length > 0) {
-             try {
-                await studentApi.put('/subject/assign', {
-                    classSectionId: editingClassId,
-                    subjectIds: selectedSubjectIds,
-                    teacherId: null 
-                });
-             } catch (err) { console.log("Subject update error (optional)", err); }
+  const fetchMappings = async (classId: string) => {
+      setMappingLoading(true);
+      try {
+          const data = await getSubjectMappings(classId);
+          setMappings(data);
+      } catch(e) { console.error(e); }
+      finally { setMappingLoading(false); }
+  };
+
+  const fetchUnassignedStudents = async (grade: string) => {
+      setStudentLoading(true);
+      try {
+          const students = await getUnassignedStudents(grade);
+          setUnassignedStudents(students);
+      } catch(e) { console.error(e); }
+      finally { setStudentLoading(false); }
+  };
+
+  // --- ACTIONS ---
+
+  const handleSaveDetails = async () => {
+      if(!className || !section) { Alert.alert("Error", "Class Name & Section required"); return; }
+      setIsSubmitting(true);
+      try {
+          const payload = { className, section, academicYear, capacity: parseInt(capacity), classTeacherId };
+          if(activeClass?.classSectionId) {
+              await updateClassSection(activeClass.classSectionId, payload);
+              Alert.alert("Success", "Class Updated");
+          } else {
+              const newClass = await createClassSection(payload);
+              setActiveClass(newClass);
+              // Move to next step after create
+              Alert.alert("Success", "Class Created! Now assign subjects.");
+              setActiveTab('SUBJECTS');
           }
+          fetchAllData();
+      } catch(e) { Alert.alert("Error", "Operation Failed"); }
+      finally { setIsSubmitting(false); }
+  };
 
-          Alert.alert("Success", "Class Updated Successfully!");
+  const handleAssignTeacherToSubject = async (subjectId: string, teacherId: string) => {
+      if(!activeClass?.classSectionId) return;
+      try {
+          await assignSubjectTeacher({
+              classSectionId: activeClass.classSectionId,
+              subjectId,
+              teacherId
+          });
+          // Refresh mappings
+          fetchMappings(activeClass.classSectionId);
+      } catch(e) { Alert.alert("Error", "Failed to assign teacher"); }
+  };
+
+  const handleAddStudent = async (studentId: string) => {
+      if(!activeClass?.classSectionId) return;
+      try {
+          await assignStudentToClass(activeClass.classSectionId, studentId);
+          // Refresh students list
+          fetchUnassignedStudents(className);
+          fetchAllData(); // Update counts on main screen
+      } catch(e) { Alert.alert("Error", "Failed to add student"); }
+  };
+
+  const handleDeleteClass = async (id: string) => {
+      if (Platform.OS === 'web') {
+        if (confirm("Delete this class?")) await processDelete(id);
       } else {
-          // --- CREATE MODE ---
-          const newClass = await createClassSection(classData);
-
-          if (selectedSubjectIds.length > 0 && newClass.classSectionId) {
-              try {
-                await studentApi.post('/subject/assign', {
-                    classSectionId: newClass.classSectionId,
-                    subjectIds: selectedSubjectIds,
-                    teacherId: null 
-                });
-              } catch (err) {
-                 console.log("Subject assignment skipped or handled by backend");
-              }
-          }
-          Alert.alert("Success", "Class Created Successfully!");
+        Alert.alert("Confirm", "Delete this class?", [
+          { text: "Cancel" }, { text: "Delete", style: "destructive", onPress: () => processDelete(id) }
+        ]);
       }
-
-      setModalVisible(false);
-      resetForm();
-      fetchAllData(); 
-    } catch (e: any) {
-      Alert.alert("Error", e.response?.data?.message || (isEditMode ? "Failed to update class" : "Failed to create class"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const openEditModal = (item: ClassSectionDTO) => {
-      setIsEditMode(true);
-      setEditingClassId(item.classSectionId!);
-      
-      setClassName(item.className);
-      setSection(item.section);
-      setAcademicYear(item.academicYear);
-      setCapacity(item.capacity ? item.capacity.toString() : '40');
-      setSelectedTeacherId(item.classTeacherId || '');
-      setSelectedSubjectIds(item.subjectIds || []);
-      
-      setModalVisible(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (Platform.OS === 'web') {
-      if (confirm("Are you sure you want to delete this class?")) {
-        await processDelete(id);
-      }
-    } else {
-      Alert.alert("Confirm", "Delete this class?", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => processDelete(id) }
-      ]);
-    }
   };
 
   const processDelete = async (id: string) => {
-    try {
-      await deleteClassSection(id);
-      fetchAllData();
-    } catch (e) {
-      Alert.alert("Error", "Failed to delete class");
-    }
+    try { await deleteClassSection(id); fetchAllData(); } catch (e) { Alert.alert("Error", "Failed to delete"); }
   };
 
-  const resetForm = () => {
-    setClassName('');
-    setSection('');
-    setCapacity('40');
-    setSelectedTeacherId('');
-    setSelectedSubjectIds([]);
-    setShowTeacherDropdown(false);
-    setShowSubjectDropdown(false);
-    setIsEditMode(false);
-    setEditingClassId(null);
-  };
+  // --- RENDERERS ---
 
-  const toggleSubjectSelection = (id: string) => {
-      if (selectedSubjectIds.includes(id)) {
-          setSelectedSubjectIds(prev => prev.filter(sid => sid !== id));
-      } else {
-          setSelectedSubjectIds(prev => [...prev, id]);
-      }
-  };
+  const getTeacherName = (id: string) => teachersList.find(t => t.teacherId === id)?.teacherName || 'Select Teacher';
 
-  const getTeacherName = (id: string) => {
-      const t = teachersList.find(t => t.teacherId === id);
-      return t ? t.teacherName : 'Select Teacher';
-  };
+  const renderDetailsTab = () => (
+      <ScrollView>
+          <Text style={styles.label}>Class (Grade)</Text>
+          <TextInput style={styles.input} value={className} onChangeText={setClassName} placeholder="e.g. 4" />
+          
+          <Text style={styles.label}>Section</Text>
+          <TextInput style={styles.input} value={section} onChangeText={setSection} placeholder="e.g. A" />
+          
+          <Text style={styles.label}>Academic Year</Text>
+          <TextInput style={styles.input} value={academicYear} onChangeText={setAcademicYear} />
+          
+          <Text style={styles.label}>Capacity</Text>
+          <TextInput style={styles.input} value={capacity} onChangeText={setCapacity} keyboardType="numeric" />
+          
+          <Text style={styles.label}>Class Teacher</Text>
+          <View style={styles.pickerContainer}>
+              <ScrollView nestedScrollEnabled style={{maxHeight: 150}}>
+                  {teachersList.map(t => (
+                      <TouchableOpacity key={t.teacherId} style={[styles.pickerItem, classTeacherId === t.teacherId && styles.pickerItemSelected]} onPress={() => setClassTeacherId(t.teacherId!)}>
+                          <Text style={classTeacherId === t.teacherId ? styles.pickerTextSelected : styles.pickerText}>{t.teacherName}</Text>
+                          {classTeacherId === t.teacherId && <Ionicons name="checkmark" size={16} color="#2563EB"/>}
+                      </TouchableOpacity>
+                  ))}
+              </ScrollView>
+          </View>
 
-  if (state.status === 'loading' || loading && classes.length === 0) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
-  }
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSaveDetails} disabled={isSubmitting}>
+              {isSubmitting ? <ActivityIndicator color="#FFF"/> : <Text style={styles.saveBtnText}>{activeClass ? "Update Details" : "Create Class"}</Text>}
+          </TouchableOpacity>
+      </ScrollView>
+  );
 
-  const renderItem = ({ item }: { item: ClassSectionDTO }) => (
-    <View style={[
-        styles.itemContainer, 
-        isWeb && { 
-            width: `${100 / numColumns}%`, 
-            paddingHorizontal: 10, 
-            marginBottom: 20 
-        }
-    ]}>
+  const renderSubjectsTab = () => (
+      <View style={{flex: 1}}>
+          <Text style={styles.helperText}>Assign teachers to subjects for Class {className}-{section}</Text>
+          
+          <ScrollView style={{flex: 1}} nestedScrollEnabled>
+              {subjectsList.map(sub => {
+                  const currentMapping = mappings.find(m => m.subjectId === sub.subjectId);
+                  const currentTeacherId = currentMapping?.teacherId || '';
+
+                  // 🔥 FILTER LOGIC: Only show teachers who have this subject in their profile
+                  const qualifiedTeachers = teachersList.filter(t => 
+                      t.subjectIds && t.subjectIds.includes(sub.subjectId!)
+                  );
+
+                  return (
+                      <View key={sub.subjectId} style={styles.subjectRow}>
+                          <View style={{flex: 1, justifyContent: 'center'}}>
+                              <Text style={styles.subjectName}>{sub.subjectName}</Text>
+                              <Text style={styles.subjectCode}>{sub.subjectCode}</Text>
+                          </View>
+                          
+                          <View style={{flex: 2}}>
+                              {qualifiedTeachers.length > 0 ? (
+                                  isWeb ? (
+                                      // WEB LOGIC: Wrap chips (Grid Style) - No Scroll needed
+                                      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>
+                                          {qualifiedTeachers.map(t => (
+                                              <TouchableOpacity 
+                                                  key={t.teacherId}
+                                                  // FIX: Added explicit marginBottom for Web
+                                                  style={[
+                                                      styles.miniChip, 
+                                                      currentTeacherId === t.teacherId && styles.miniChipActive,
+                                                      { marginBottom: 6 } 
+                                                  ]}
+                                                  onPress={() => handleAssignTeacherToSubject(sub.subjectId!, t.teacherId!)}
+                                              >
+                                                  <Text style={[styles.miniChipText, currentTeacherId === t.teacherId && {color:'#FFF'}]}>
+                                                      {t.teacherName}
+                                                  </Text>
+                                              </TouchableOpacity>
+                                          ))}
+                                      </View>
+                                  ) : (
+                                      // MOBILE LOGIC: Horizontal Scroll (Swipe Style)
+                                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flexDirection: 'row'}}>
+                                          {qualifiedTeachers.map(t => (
+                                              <TouchableOpacity 
+                                                  key={t.teacherId}
+                                                  style={[styles.miniChip, currentTeacherId === t.teacherId && styles.miniChipActive]}
+                                                  onPress={() => handleAssignTeacherToSubject(sub.subjectId!, t.teacherId!)}
+                                              >
+                                                  <Text style={[styles.miniChipText, currentTeacherId === t.teacherId && {color:'#FFF'}]}>
+                                                      {t.teacherName}
+                                                  </Text>
+                                              </TouchableOpacity>
+                                          ))}
+                                      </ScrollView>
+                                  )
+                              ) : (
+                                  <Text style={{color: '#EF4444', fontSize: 12, fontStyle: 'italic'}}>
+                                      No qualified teachers found for {sub.subjectName}
+                                  </Text>
+                              )}
+                          </View>
+                      </View>
+                  )
+              })}
+          </ScrollView>
+      </View>
+  );
+
+  const renderStudentsTab = () => (
+      <View style={{flex: 1}}>
+          <Text style={styles.helperText}>Students who applied for Grade "{className}" but have no section.</Text>
+          {studentLoading ? <ActivityIndicator color="#F97316"/> : (
+              unassignedStudents.length === 0 ? (
+                  <Text style={styles.emptyText}>No pending students for Grade {className}</Text>
+              ) : (
+                  <FlatList
+                      data={unassignedStudents}
+                      keyExtractor={s => s.studentId}
+                      renderItem={({item}) => (
+                          <View style={styles.studentRow}>
+                              <View>
+                                  <Text style={styles.studentName}>{item.fullName}</Text>
+                                  <Text style={styles.studentId}>{item.studentId}</Text>
+                              </View>
+                              <TouchableOpacity style={styles.addStudentBtn} onPress={() => handleAddStudent(item.studentId)}>
+                                  <Ionicons name="add" size={18} color="#FFF" />
+                                  <Text style={styles.addStudentText}>Add</Text>
+                              </TouchableOpacity>
+                          </View>
+                      )}
+                  />
+              )
+          )}
+      </View>
+  );
+
+  const renderClassCard = ({ item }: { item: ClassSectionDTO }) => (
+    <View style={[styles.cardContainer, isWeb && { width: `${100 / numColumns}%` }]}>
         <View style={styles.card}>
-            {/* Header Row: Icon + Name + Actions */}
             <View style={styles.cardHeader}>
-                <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-                    <View style={styles.cardIcon}>
-                        <Ionicons name="easel-outline" size={24} color="#FFF" />
-                    </View>
-                    <View>
-                        <Text style={styles.className}>{item.className} - {item.section}</Text>
-                        <Text style={styles.classDetails}>Year: {item.academicYear}</Text>
-                    </View>
+                <View style={styles.iconCircle}>
+                    <Text style={styles.gradeText}>{item.className}</Text>
                 </View>
-
-                {/* Actions (Edit & Delete) at Top Right */}
-                <View style={styles.actionRow}>
-                    <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconBtn}>
-                        <Ionicons name="create-outline" size={20} color="#2563EB" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDelete(item.classSectionId!)} style={styles.iconBtn}>
-                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                    </TouchableOpacity>
+                <View style={{flex: 1, marginLeft: 12}}>
+                    <Text style={styles.cardTitle}>Class {item.className} - {item.section}</Text>
+                    <Text style={styles.cardSub}>CT: {item.classTeacherName || 'None'}</Text>
                 </View>
+                <TouchableOpacity onPress={() => handleDeleteClass(item.classSectionId!)}>
+                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                </TouchableOpacity>
+            </View>
+            
+            <View style={styles.cardStat}>
+                <Ionicons name="people" size={16} color="#6B7280" />
+                <Text style={styles.statText}>{item.currentStrength || 0} / {item.capacity} Students</Text>
             </View>
 
-            <View style={styles.divider} />
-
-            <View style={styles.cardContent}>
-                <Text style={styles.classDetails}>
-                Strength: {item.currentStrength || 0} / {item.capacity}
-                </Text>
-                <Text style={[styles.teacherText, item.classTeacherName ? {color:'#059669'} : {color:'#EF4444'}]}>
-                Teacher: {item.classTeacherName || 'Not Assigned'}
-                </Text>
-            </View>
+            <TouchableOpacity style={styles.manageBtn} onPress={() => openManageModal(item)}>
+                <Text style={styles.manageBtnText}>Manage Class</Text>
+                <Ionicons name="settings-outline" size={16} color="#FFF" />
+            </TouchableOpacity>
         </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <View style={[styles.headerRow, !isWeb && styles.headerRowMobile]}>
-        <Text style={styles.title}>Class Management</Text>
-        <TouchableOpacity style={[styles.addBtn, !isWeb && styles.addBtnMobile]} onPress={() => { resetForm(); setModalVisible(true); }}>
-          <Ionicons name="add" size={20} color="#FFF" />
-          <Text style={styles.addBtnText}>Add Class</Text>
-        </TouchableOpacity>
-      </View>
-
-      <FlatList
-        data={classes}
-        keyExtractor={(item) => item.classSectionId || Math.random().toString()}
-        renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: 20 }}
-        key={numColumns}
-        numColumns={numColumns}
-        columnWrapperStyle={isWeb ? null : undefined}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No classes found. Create one!</Text>
-          </View>
-        }
-      />
-
-      <Modal visible={modalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{isEditMode ? "Edit Class" : "Create New Class"}</Text>
-              <TouchableOpacity onPress={() => { setModalVisible(false); resetForm(); }}>
-                <Ionicons name="close" size={24} color="#374151" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.label}>Class Name (Grade)</Text>
-                <TextInput 
-                style={styles.input} 
-                placeholder="e.g. 10" 
-                value={className}
-                onChangeText={setClassName}
-                />
-
-                <Text style={styles.label}>Section</Text>
-                <TextInput 
-                style={styles.input} 
-                placeholder="e.g. A" 
-                value={section}
-                onChangeText={setSection}
-                />
-
-                <Text style={styles.label}>Academic Year</Text>
-                <TextInput 
-                style={styles.input} 
-                placeholder="e.g. 2025-2026" 
-                value={academicYear}
-                onChangeText={setAcademicYear}
-                />
-
-                <Text style={styles.label}>Capacity</Text>
-                <TextInput 
-                style={styles.input} 
-                placeholder="e.g. 40" 
-                keyboardType="numeric"
-                value={capacity}
-                onChangeText={setCapacity}
-                />
-
-                {/* TEACHER DROPDOWN */}
-                <Text style={styles.label}>Assign Class Teacher</Text>
-                <TouchableOpacity 
-                    style={styles.dropdownBtn} 
-                    onPress={() => {
-                        setShowTeacherDropdown(!showTeacherDropdown);
-                        setShowSubjectDropdown(false);
-                    }}
-                >
-                    <Text style={styles.dropdownText}>{selectedTeacherId ? getTeacherName(selectedTeacherId) : "Select Teacher"}</Text>
-                    <Ionicons name={showTeacherDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6B7280" />
-                </TouchableOpacity>
-                
-                {showTeacherDropdown && (
-                    <View style={styles.dropdownList}>
-                        <ScrollView nestedScrollEnabled style={{ maxHeight: 150 }}>
-                            {teachersList.map(t => (
-                                <TouchableOpacity 
-                                    key={t.teacherId} 
-                                    style={[styles.dropdownItem, selectedTeacherId === t.teacherId && styles.dropdownItemSelected]}
-                                    onPress={() => {
-                                        setSelectedTeacherId(t.teacherId || ''); 
-                                        setShowTeacherDropdown(false);
-                                    }}
-                                >
-                                    <Text style={styles.dropdownItemText}>{t.teacherName}</Text>
-                                    {selectedTeacherId === t.teacherId && <Ionicons name="checkmark" size={16} color="#F97316" />}
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-                )}
-
-                {/* SUBJECT DROPDOWN (MULTI) */}
-                <Text style={[styles.label, {marginTop: 12}]}>Assign Subjects ({selectedSubjectIds.length})</Text>
-                <TouchableOpacity 
-                    style={styles.dropdownBtn} 
-                    onPress={() => {
-                        setShowSubjectDropdown(!showSubjectDropdown);
-                        setShowTeacherDropdown(false);
-                    }}
-                >
-                    <Text style={styles.dropdownText}>{selectedSubjectIds.length > 0 ? `${selectedSubjectIds.length} Selected` : "Select Subjects"}</Text>
-                    <Ionicons name={showSubjectDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6B7280" />
-                </TouchableOpacity>
-
-                {showSubjectDropdown && (
-                    <View style={styles.dropdownList}>
-                        <ScrollView nestedScrollEnabled style={{ maxHeight: 150 }}>
-                            {subjectsList.map(s => (
-                                <TouchableOpacity 
-                                    key={s.subjectId} 
-                                    style={[styles.dropdownItem, selectedSubjectIds.includes(s.subjectId!) && styles.dropdownItemSelected]}
-                                    onPress={() => toggleSubjectSelection(s.subjectId!)}
-                                >
-                                    <Text style={styles.dropdownItemText}>{s.subjectName}</Text>
-                                    {selectedSubjectIds.includes(s.subjectId!) ? (
-                                        <Ionicons name="checkbox" size={20} color="#F97316" />
-                                    ) : (
-                                        <Ionicons name="square-outline" size={20} color="#D1D5DB" />
-                                    )}
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-                )}
-
-                <TouchableOpacity 
-                style={styles.submitBtn} 
-                onPress={handleCreateOrUpdate}
-                disabled={isSubmitting}
-                >
-                {isSubmitting ? (
-                    <ActivityIndicator color="#FFF" />
-                ) : (
-                    <Text style={styles.submitBtnText}>{isEditMode ? "Update Class" : "Create Class"}</Text>
-                )}
-                </TouchableOpacity>
-            </ScrollView>
-          </View>
+        <View style={styles.headerRow}>
+            <Text style={styles.pageTitle}>Classes</Text>
+            <TouchableOpacity style={styles.createBtn} onPress={openCreateModal}>
+                <Ionicons name="add" size={20} color="#FFF" />
+                <Text style={styles.createBtnText}>Create Class</Text>
+            </TouchableOpacity>
         </View>
-      </Modal>
+
+        {loading ? <ActivityIndicator size="large" color="#F97316" /> : (
+            <FlatList
+                data={classes}
+                keyExtractor={item => item.classSectionId!}
+                renderItem={renderClassCard}
+                numColumns={numColumns}
+                key={numColumns}
+                contentContainerStyle={{paddingBottom: 40}}
+            />
+        )}
+
+        {/* --- MANAGEMENT MODAL --- */}
+        <Modal visible={manageModalVisible} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+                <View style={[styles.modalContent, isWeb && {width: '70%', maxWidth: 800, height: '80%'}]}>
+                    
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>
+                            {activeClass ? `Manage Class ${activeClass.className}-${activeClass.section}` : 'New Class'}
+                        </Text>
+                        <TouchableOpacity onPress={() => setManageModalVisible(false)}>
+                            <Ionicons name="close" size={24} color="#374151" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* TABS */}
+                    <View style={styles.tabs}>
+                        <TouchableOpacity style={[styles.tab, activeTab === 'DETAILS' && styles.tabActive]} onPress={() => setActiveTab('DETAILS')}>
+                            <Text style={[styles.tabText, activeTab === 'DETAILS' && styles.tabTextActive]}>Details</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity disabled={!activeClass} style={[styles.tab, activeTab === 'SUBJECTS' && styles.tabActive, !activeClass && {opacity: 0.5}]} onPress={() => setActiveTab('SUBJECTS')}>
+                            <Text style={[styles.tabText, activeTab === 'SUBJECTS' && styles.tabTextActive]}>Subjects & Teachers</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity disabled={!activeClass} style={[styles.tab, activeTab === 'STUDENTS' && styles.tabActive, !activeClass && {opacity: 0.5}]} onPress={() => {setActiveTab('STUDENTS'); fetchUnassignedStudents(className)}}>
+                            <Text style={[styles.tabText, activeTab === 'STUDENTS' && styles.tabTextActive]}>Add Students</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.tabContent}>
+                        {activeTab === 'DETAILS' && renderDetailsTab()}
+                        {activeTab === 'SUBJECTS' && renderSubjectsTab()}
+                        {activeTab === 'STUDENTS' && renderStudentsTab()}
+                    </View>
+
+                </View>
+            </View>
+        </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#F3F4F6' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  headerRowMobile: { flexDirection: 'column', alignItems: 'flex-start', gap: 15 },
-  
-  title: { fontSize: 24, fontWeight: 'bold', color: '#111827' },
-  addBtn: { flexDirection: 'row', backgroundColor: '#F97316', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
-  addBtnMobile: { alignSelf: 'flex-start' },
-  addBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 6 },
-  
-  // --- GRID SYSTEM STYLES ---
-  itemContainer: {
-    width: '100%', 
-    marginBottom: 16,
-  },
-  
-  card: { 
-    flex: 1,
-    backgroundColor: '#FFF', 
-    borderRadius: 12, 
-    padding: 16, 
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
-  },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, alignItems: 'center' },
+  pageTitle: { fontSize: 24, fontWeight: 'bold', color: '#111827' },
+  createBtn: { backgroundColor: '#F97316', flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  createBtnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 6 },
 
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  cardIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  
-  cardContent: { marginTop: 10 },
-  
-  className: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
-  classDetails: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  teacherText: { fontSize: 13, marginTop: 4, fontWeight: '600' },
-  
-  actionRow: { flexDirection: 'row', gap: 10 },
-  iconBtn: { padding: 4 },
-  
-  divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
+  // Card
+  cardContainer: { padding: 8, marginBottom: 8 },
+  card: { backgroundColor: '#FFF', borderRadius: 12, padding: 16, elevation: 2 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  iconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' },
+  gradeText: { fontSize: 16, fontWeight: 'bold', color: '#2563EB' },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#1F2937' },
+  cardSub: { fontSize: 12, color: '#6B7280' },
+  cardStat: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: '#F9FAFB', padding: 8, borderRadius: 6 },
+  statText: { marginLeft: 6, fontSize: 13, color: '#4B5563', fontWeight: '500' },
+  manageBtn: { backgroundColor: '#10B981', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 8, borderRadius: 6 },
+  manageBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 13, marginRight: 6 },
 
-  emptyState: { alignItems: 'center', marginTop: 50 },
-  emptyText: { color: '#9CA3AF', fontSize: 16 },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { backgroundColor: '#FFF', borderRadius: 16, padding: 24, width: '100%', maxWidth: 450, maxHeight: '90%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { backgroundColor: '#FFF', width: '90%', borderRadius: 16, padding: 20, maxHeight: '90%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
   
-  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6 },
-  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 16, backgroundColor: '#F9FAFB' },
-  
-  dropdownBtn: { 
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-      borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, backgroundColor: '#FFF'
-  },
-  dropdownText: { fontSize: 14, color: '#374151' },
-  dropdownList: { 
-      borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, marginTop: 4, backgroundColor: '#FFF',
-      maxHeight: 150 
-  },
-  dropdownItem: { flexDirection: 'row', justifyContent: 'space-between', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  dropdownItemSelected: { backgroundColor: '#FFF7ED' },
-  dropdownItemText: { fontSize: 14, color: '#374151' },
+  // Tabs
+  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', marginBottom: 16 },
+  tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: '#F97316' },
+  tabText: { color: '#6B7280', fontWeight: '600' },
+  tabTextActive: { color: '#F97316', fontWeight: 'bold' },
+  tabContent: { flex: 1 },
 
-  submitBtn: { backgroundColor: '#F97316', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 24 },
-  submitBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  // Forms
+  label: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 4, marginTop: 10 },
+  input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 10, backgroundColor: '#F9FAFB' },
+  pickerContainer: { maxHeight: 150, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, marginTop: 4 },
+  pickerItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', flexDirection: 'row', justifyContent: 'space-between' },
+  pickerItemSelected: { backgroundColor: '#EFF6FF' },
+  pickerText: { color: '#374151' },
+  pickerTextSelected: { color: '#2563EB', fontWeight: 'bold' },
+  saveBtn: { backgroundColor: '#2563EB', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 20 },
+  saveBtnText: { color: '#FFF', fontWeight: 'bold' },
+
+  // Subjects
+  helperText: { fontSize: 13, color: '#6B7280', marginBottom: 12, fontStyle: 'italic' },
+  subjectRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  subjectName: { fontWeight: 'bold', color: '#1F2937', fontSize: 15 },
+  subjectCode: { fontSize: 12, color: '#9CA3AF' },
+  
+  miniChip: { 
+    paddingHorizontal: 10, 
+    paddingVertical: 6, 
+    borderRadius: 12, 
+    backgroundColor: '#F3F4F6', 
+    marginRight: 6, 
+    borderWidth: 1, 
+    borderColor: '#E5E7EB'
+    // Fixed: Removed isWeb dependency from here to avoid crash
+  },
+  miniChipActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
+  miniChipText: { fontSize: 12, color: '#4B5563' },
+
+  // Students
+  studentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: '#F9FAFB', marginBottom: 8, borderRadius: 8 },
+  studentName: { fontWeight: 'bold', color: '#1F2937' },
+  studentId: { fontSize: 12, color: '#6B7280' },
+  addStudentBtn: { backgroundColor: '#10B981', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+  addStudentText: { color: '#FFF', fontWeight: 'bold', fontSize: 12, marginLeft: 4 },
+  emptyText: { textAlign: 'center', marginTop: 20, color: '#9CA3AF' }
 });

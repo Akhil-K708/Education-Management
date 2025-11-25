@@ -20,6 +20,19 @@ import { DashboardStatCard } from './DashboardStatCard';
 import { EventCalendar } from './EventCalendar';
 import { NoticeBoard } from './NoticeBoard';
 
+// --- MOBILE STAT CARD COMPONENT (Full Width) ---
+const MobileStatCard = ({ title, value, iconName, color }: { title: string, value: string | number, iconName: any, color: string }) => (
+  <View style={[styles.mobileStatCard, { borderLeftColor: color }]}>
+    <View style={[styles.mobileIconBox, { backgroundColor: color + '20' }]}>
+      <Ionicons name={iconName} size={24} color={color} />
+    </View>
+    <View>
+      <Text style={styles.mobileStatLabel}>{title}</Text>
+      <Text style={[styles.mobileStatValue, { color: color }]}>{value}</Text>
+    </View>
+  </View>
+);
+
 export const TeacherDashboard = () => {
   const { state } = useAuth();
   const user = state.user;
@@ -42,6 +55,7 @@ export const TeacherDashboard = () => {
       if (!user?.username) return;
       setLoading(true);
       try {
+        // 1. Get Timetable
         const timetableData = await getTeacherTimetable(user.username);
         
         if (timetableData) {
@@ -55,6 +69,7 @@ export const TeacherDashboard = () => {
             }
         }
 
+        // 2. Get Assigned Class
         const classesRes = await studentApi.get(`/teacher/assigned-classes/${user.username}`);
         const assignedClasses = classesRes.data;
 
@@ -68,6 +83,7 @@ export const TeacherDashboard = () => {
             setStudentCount(0);
         }
 
+        // 3. Get Assignments Count
         const assignments = await getTeacherAssignments(user.username);
         setPendingReviews(assignments.length);
 
@@ -85,7 +101,6 @@ export const TeacherDashboard = () => {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
   }
 
-  // --- Class Item Component ---
   const renderClassItem = ({ item }: { item: any }) => (
     <View style={styles.classItem}>
       <View style={styles.timeBox}>
@@ -113,7 +128,8 @@ export const TeacherDashboard = () => {
     </View>
   );
 
-  // 1. Welcome Section (Full Width)
+  // --- COMPONENTS ---
+
   const WelcomeSection = () => (
     <View style={styles.welcomeSection}>
       <View>
@@ -124,147 +140,158 @@ export const TeacherDashboard = () => {
     </View>
   );
 
-  // 2. Left Column Content (Stats -> Quick Actions -> Schedule)
-  const LeftColumnContent = () => (
-    <View style={styles.leftContentContainer}>
-      {/* Stats Row */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCardWrapper}>
-            <DashboardStatCard
+  const QuickActions = () => (
+    <View style={styles.quickActionSection}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.quickActionsRow}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(app)/attendance')}>
+              <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
+                  <Ionicons name="calendar-outline" size={20} color="#2563EB" />
+              </View>
+              <Text style={styles.actionText}>Attendance</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(app)/assignments')}>
+              <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
+                  <Ionicons name="create-outline" size={20} color="#D97706" />
+              </View>
+              <Text style={styles.actionText}>Work</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(app)/results')}>
+              <View style={[styles.iconCircle, { backgroundColor: '#D1FAE5' }]}>
+                  <Ionicons name="ribbon-outline" size={20} color="#059669" />
+              </View>
+              <Text style={styles.actionText}>Marks</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(app)/examschedule')}>
+              <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
+                  <Ionicons name="time-outline" size={20} color="#DC2626" />
+              </View>
+              <Text style={styles.actionText}>Exams</Text>
+          </TouchableOpacity>
+        </View>
+    </View>
+  );
+
+  const ScheduleSection = () => (
+    <View style={styles.scheduleSection}>
+      <Text style={styles.sectionTitle}>Today's Schedule</Text>
+      <View style={styles.scheduleCard}>
+          {todaysClasses.length > 0 ? (
+              <FlatList
+                  data={todaysClasses}
+                  renderItem={renderClassItem}
+                  keyExtractor={(item, index) => index.toString()}
+                  style={{ maxHeight: 300 }} 
+                  showsVerticalScrollIndicator={true}
+                  contentContainerStyle={{ paddingRight: isWeb ? 8 : 0 }}
+                  nestedScrollEnabled={true}
+              />
+          ) : (
+              <View style={styles.emptyState}>
+                  <Ionicons name="happy-outline" size={48} color="#9CA3AF" />
+                  <Text style={styles.emptyText}>No classes today!</Text>
+              </View>
+          )}
+      </View>
+    </View>
+  );
+
+  // --- MOBILE SPECIFIC LAYOUT ---
+  const MobileLayout = () => (
+    <ScrollView style={styles.container} contentContainerStyle={{paddingBottom: 80}}>
+      <WelcomeSection />
+
+      {/* 1. My Class Card */}
+      <View style={styles.mobileCardWrapper}>
+         <MobileStatCard
             title="My Class"
             value={myClass}
             iconName="easel-outline"
             color="#2563EB"
-            />
-        </View>
-        <View style={styles.statCardWrapper}>
-            <DashboardStatCard
+         />
+      </View>
+
+      {/* 2. My Students (Down-by-Down) */}
+      <View style={styles.mobileCardWrapper}>
+         <MobileStatCard
             title="My Students"
             value={studentCount}
             iconName="people-outline"
             color="#10B981"
-            />
-        </View>
-        <View style={styles.statCardWrapper}>
-            <DashboardStatCard
+         />
+      </View>
+
+      {/* 3. Assignments (Down-by-Down) */}
+      <View style={styles.mobileCardWrapper}>
+         <MobileStatCard
             title="Active Assignments"
             value={pendingReviews}
             iconName="documents-outline"
             color="#F59E0B"
-            />
-        </View>
+         />
       </View>
 
-      {/* Quick Actions */}
-      <View style={styles.quickActionSection}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsRow}>
-            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(app)/attendance')}>
-                <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
-                    <Ionicons name="calendar-outline" size={20} color="#2563EB" />
-                </View>
-                <Text style={styles.actionText}>Attendance</Text>
-            </TouchableOpacity>
+      {/* 4. Quick Actions (Below stats) */}
+      <QuickActions />
 
-            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(app)/assignments')}>
-                <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
-                    <Ionicons name="create-outline" size={20} color="#D97706" />
-                </View>
-                <Text style={styles.actionText}>Work</Text>
-            </TouchableOpacity>
+      {/* 5. Schedule */}
+      <ScheduleSection />
 
-            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(app)/results')}>
-                <View style={[styles.iconCircle, { backgroundColor: '#D1FAE5' }]}>
-                    <Ionicons name="ribbon-outline" size={20} color="#059669" />
-                </View>
-                <Text style={styles.actionText}>Marks</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(app)/examschedule')}>
-                <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
-                    <Ionicons name="time-outline" size={20} color="#DC2626" />
-                </View>
-                <Text style={styles.actionText}>Exams</Text>
-            </TouchableOpacity>
-          </View>
+      {/* 6. Calendar & Notices */}
+      <View style={{marginTop: 20}}>
+        <EventCalendar />
       </View>
-
-      {/* Today's Schedule */}
-      <View style={styles.scheduleSection}>
-        <Text style={styles.sectionTitle}>Today's Schedule</Text>
-        <View style={styles.scheduleCard}>
-            {todaysClasses.length > 0 ? (
-                <FlatList
-                    data={todaysClasses}
-                    renderItem={renderClassItem}
-                    keyExtractor={(item, index) => index.toString()}
-                    style={isWeb ? { height: 300 } : { maxHeight: 300 }} 
-                    showsVerticalScrollIndicator={true}
-                    contentContainerStyle={{ paddingRight: isWeb ? 8 : 0 }}
-                    nestedScrollEnabled={true}
-                />
-            ) : (
-                <View style={styles.emptyState}>
-                    <Ionicons name="happy-outline" size={48} color="#9CA3AF" />
-                    <Text style={styles.emptyText}>No classes today!</Text>
-                </View>
-            )}
-        </View>
+      <View style={{marginTop: 20}}>
+        <NoticeBoard />
       </View>
-    </View>
+    </ScrollView>
   );
 
-  // 3. Right Column Content (Calendar -> Notice Board)
-  const RightColumnContent = () => (
-    <View style={styles.rightContentContainer}>
-      <View style={styles.calendarWrapper}>
-          <EventCalendar />
-      </View>
-      <View style={styles.noticeWrapper}>
-          <NoticeBoard />
-      </View>
-    </View>
-  );
-
-  // --- WEB LAYOUT ---
+  // --- WEB SPECIFIC LAYOUT ---
   if (isWeb) {
       return (
         <ScrollView style={styles.container} contentContainerStyle={{paddingBottom: 40}}>
-            {/* Full Width Header */}
             <WelcomeSection />
 
             <View style={styles.webGrid}>
-                {/* LEFT COLUMN (Flex 2.5) */}
+                {/* LEFT COLUMN */}
                 <View style={styles.leftColumn}>
-                    <LeftColumnContent />
+                    
+                    {/* Stats Row */}
+                    <View style={styles.statsContainer}>
+                        <View style={styles.statCardWrapper}>
+                            <DashboardStatCard title="My Class" value={myClass} iconName="easel-outline" color="#2563EB"/>
+                        </View>
+                        <View style={styles.statCardWrapper}>
+                            <DashboardStatCard title="My Students" value={studentCount} iconName="people-outline" color="#10B981"/>
+                        </View>
+                        <View style={styles.statCardWrapper}>
+                            <DashboardStatCard title="Active Assignments" value={pendingReviews} iconName="documents-outline" color="#F59E0B"/>
+                        </View>
+                    </View>
+
+                    <QuickActions />
+                    <ScheduleSection />
                 </View>
 
-                {/* RIGHT COLUMN (Flex 1) - Starts aligned with Stats */}
+                {/* RIGHT COLUMN */}
                 <View style={styles.rightColumn}>
-                    <RightColumnContent />
+                    <View style={styles.calendarWrapper}>
+                        <EventCalendar />
+                    </View>
+                    <View style={styles.noticeWrapper}>
+                        <NoticeBoard />
+                    </View>
                 </View>
             </View>
         </ScrollView>
       );
   }
 
-  // --- MOBILE LAYOUT ---
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={{paddingBottom: 40}}>
-      <WelcomeSection />
-      
-      {/* Stack everything vertically for mobile */}
-      <LeftColumnContent />
-      
-      <View style={{marginTop: 20}}>
-        <EventCalendar />
-      </View>
-
-      <View style={{marginTop: 20}}>
-        <NoticeBoard />
-      </View>
-    </ScrollView>
-  );
+  return <MobileLayout />;
 };
 
 const styles = StyleSheet.create({
@@ -273,10 +300,8 @@ const styles = StyleSheet.create({
   
   // Layout
   webGrid: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
-  leftColumn: { flex: 2.5 }, // Increased flex for wider left content
-  rightColumn: { flex: 1, minWidth: 320 },
-  leftContentContainer: { gap: 20 },
-  rightContentContainer: { gap: 20 },
+  leftColumn: { flex: 2.5, gap: 20 }, 
+  rightColumn: { flex: 1, minWidth: 320, gap: 20 },
 
   // Welcome
   welcomeSection: { marginBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
@@ -284,19 +309,33 @@ const styles = StyleSheet.create({
   subTitle: { fontSize: 14, color: '#6B7280', marginTop: 4 },
   dateText: { fontSize: 14, fontWeight: '600', color: '#4B5563', backgroundColor: '#E5E7EB', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
 
-  // Stats
-  statsContainer: { 
-      flexDirection: 'row', 
-      flexWrap: 'wrap', 
-      gap: 16,
+  // Web Stats
+  statsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  statCardWrapper: { flex: 1, minWidth: 200 },
+
+  // Mobile Stats
+  mobileCardWrapper: { marginBottom: 12 },
+  mobileStatCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4,
+    borderLeftWidth: 4, 
+    height: 80, 
   },
-  statCardWrapper: {
-      flex: 1,
-      minWidth: 200, 
+  mobileIconBox: {
+    width: 40, height: 40, borderRadius: 20,
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: 12
   },
+  mobileStatLabel: { fontSize: 12, color: '#6B7280', marginBottom: 2 },
+  mobileStatValue: { fontSize: 18, fontWeight: 'bold' },
 
   // Quick Actions
-  quickActionSection: {},
+  quickActionSection: { marginBottom: 20, marginTop: 8 },
   quickActionsRow: { 
       flexDirection: 'row', 
       justifyContent: 'space-between', 
@@ -317,7 +356,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 12 },
 
   // Schedule
-  scheduleSection: {},
+  scheduleSection: { marginBottom: 0 },
   scheduleCard: { 
       backgroundColor: '#FFF', 
       borderRadius: 16, 
@@ -353,7 +392,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyText: { color: '#9CA3AF', marginTop: 10, fontSize: 16 },
 
-  // Right Column
+  // Layout Wrappers
   calendarWrapper: { width: '100%' },
   noticeWrapper: { width: '100%' },
 });

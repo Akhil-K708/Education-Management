@@ -16,8 +16,22 @@ import {
   View,
   useWindowDimensions
 } from 'react-native';
-import { TeacherDTO, createTeacher, deleteTeacher, getAllTeachers, updateTeacher } from '../../src/api/adminApi';
+import {
+  SubjectDTO,
+  TeacherDTO,
+  createTeacher,
+  deleteTeacher,
+  getAllSubjects,
+  getAllTeachers,
+  updateTeacher
+} from '../../src/api/adminApi';
 import { useAuth } from '../../src/context/AuthContext';
+
+// Extending TeacherDTO locally to ensure subjectIds are recognized 
+// (assuming the backend DTO includes subjectIds list)
+interface ExtendedTeacherDTO extends TeacherDTO {
+  subjectIds?: string[];
+}
 
 export default function TeachersScreen() {
   const { state } = useAuth();
@@ -30,14 +44,21 @@ export default function TeachersScreen() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [teachers, setTeachers] = useState<TeacherDTO[]>([]);
+  
+  // Data States
+  const [teachers, setTeachers] = useState<ExtendedTeacherDTO[]>([]);
+  const [subjectsList, setSubjectsList] = useState<SubjectDTO[]>([]);
+
+  // Form & UI States
   const [modalVisible, setModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
   
   // Edit Mode State
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
 
+  // Form Data
   const [formData, setFormData] = useState({
     teacherName: '',
     email: '',
@@ -47,14 +68,23 @@ export default function TeachersScreen() {
     experience: '',
     address: ''
   });
+  
+  // Selected Subjects State
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
 
-  const fetchTeachers = async (isRefresh = false) => {
+  const loadInitialData = async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      const data = await getAllTeachers();
-      setTeachers(data);
+      // Fetch both Teachers and Subjects
+      const [teachersData, subjectsData] = await Promise.all([
+        getAllTeachers(),
+        getAllSubjects()
+      ]);
+      setTeachers(teachersData);
+      setSubjectsList(subjectsData);
     } catch (e) {
       console.error(e);
+      Alert.alert("Error", "Failed to load data");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -67,12 +97,12 @@ export default function TeachersScreen() {
         const timer = setTimeout(() => router.replace('/(app)'), 0);
         return () => clearTimeout(timer);
     }
-    fetchTeachers();
+    loadInitialData();
   }, [user, state.status]);
 
   const onRefresh = () => {
       setRefreshing(true);
-      fetchTeachers(true);
+      loadInitialData(true);
   };
 
   const handleCreateOrUpdate = async () => {
@@ -83,9 +113,11 @@ export default function TeachersScreen() {
 
     setIsSubmitting(true);
     try {
+      // Prepare payload including subjectIds
       const teacherData = {
         ...formData,
-        experience: formData.experience ? parseInt(formData.experience) : 0
+        experience: formData.experience ? parseInt(formData.experience) : 0,
+        subjectIds: selectedSubjectIds // Adding the selected subjects logic
       };
 
       if (isEditMode && editingTeacherId) {
@@ -100,7 +132,7 @@ export default function TeachersScreen() {
       
       setModalVisible(false);
       resetForm();
-      fetchTeachers();
+      loadInitialData();
     } catch (e: any) {
       Alert.alert("Error", isEditMode ? "Failed to update teacher." : "Failed to add teacher. Email might be duplicate.");
     } finally {
@@ -108,7 +140,7 @@ export default function TeachersScreen() {
     }
   };
 
-  const openEditModal = (teacher: TeacherDTO) => {
+  const openEditModal = (teacher: ExtendedTeacherDTO) => {
       setIsEditMode(true);
       setEditingTeacherId(teacher.teacherId!);
       setFormData({
@@ -120,6 +152,8 @@ export default function TeachersScreen() {
           experience: teacher.experience ? teacher.experience.toString() : '',
           address: teacher.address
       });
+      // Populate selected subjects from the teacher object
+      setSelectedSubjectIds(teacher.subjectIds || []);
       setModalVisible(true);
   };
 
@@ -137,7 +171,7 @@ export default function TeachersScreen() {
   const processDelete = async (id: string) => {
     try {
       await deleteTeacher(id);
-      fetchTeachers();
+      loadInitialData();
     } catch (e) {
       Alert.alert("Error", "Failed to delete teacher");
     }
@@ -145,11 +179,21 @@ export default function TeachersScreen() {
 
   const resetForm = () => {
       setFormData({ teacherName: '', email: '', phone: '', qualification: '', gender: 'Male', experience: '', address: '' });
+      setSelectedSubjectIds([]);
+      setShowSubjectDropdown(false);
       setIsEditMode(false);
       setEditingTeacherId(null);
   };
 
- const renderItem = ({ item }: { item: TeacherDTO }) => (
+  const toggleSubjectSelection = (id: string) => {
+    if (selectedSubjectIds.includes(id)) {
+      setSelectedSubjectIds(prev => prev.filter(sid => sid !== id));
+    } else {
+      setSelectedSubjectIds(prev => [...prev, id]);
+    }
+  };
+
+  const renderItem = ({ item }: { item: ExtendedTeacherDTO }) => (
     <View style={[
         styles.itemContainer, 
         isWeb && { 
@@ -177,6 +221,14 @@ export default function TeachersScreen() {
                 <Ionicons name="mail-outline" size={14} color="#6B7280" />
                 <Text style={styles.infoText}>{item.email}</Text>
             </View>
+            
+            {/* Display Subject Count if any */}
+            {item.subjectIds && item.subjectIds.length > 0 && (
+               <View style={styles.infoRow}>
+                  <Ionicons name="book-outline" size={14} color="#6B7280" />
+                  <Text style={styles.infoText}>{item.subjectIds.length} Subjects Assigned</Text>
+               </View>
+            )}
             
             <View style={styles.cardFooter}>
                 <View style={styles.badge}>
@@ -264,6 +316,41 @@ export default function TeachersScreen() {
                     ))}
                 </View>
 
+                {/* SUBJECT MULTI-SELECT DROPDOWN */}
+                <Text style={[styles.label, { marginTop: 12 }]}>Assign Subjects ({selectedSubjectIds.length})</Text>
+                <TouchableOpacity 
+                    style={styles.dropdownBtn} 
+                    onPress={() => setShowSubjectDropdown(!showSubjectDropdown)}
+                >
+                    <Text style={styles.dropdownText}>
+                        {selectedSubjectIds.length > 0 ? `${selectedSubjectIds.length} Selected` : "Select Subjects"}
+                    </Text>
+                    <Ionicons name={showSubjectDropdown ? "chevron-up" : "chevron-down"} size={20} color="#6B7280" />
+                </TouchableOpacity>
+
+                {showSubjectDropdown && (
+                    <View style={styles.dropdownList}>
+                        <ScrollView nestedScrollEnabled style={{ maxHeight: 150 }}>
+                            {subjectsList.length > 0 ? subjectsList.map(s => (
+                                <TouchableOpacity 
+                                    key={s.subjectId} 
+                                    style={[styles.dropdownItem, selectedSubjectIds.includes(s.subjectId!) && styles.dropdownItemSelected]}
+                                    onPress={() => toggleSubjectSelection(s.subjectId!)}
+                                >
+                                    <Text style={styles.dropdownItemText}>{s.subjectName}</Text>
+                                    {selectedSubjectIds.includes(s.subjectId!) ? (
+                                        <Ionicons name="checkbox" size={20} color="#F97316" />
+                                    ) : (
+                                        <Ionicons name="square-outline" size={20} color="#D1D5DB" />
+                                    )}
+                                </TouchableOpacity>
+                            )) : (
+                                <Text style={styles.emptyText}>No subjects available. Add subjects first.</Text>
+                            )}
+                        </ScrollView>
+                    </View>
+                )}
+
                 <Text style={styles.label}>Address</Text>
                 <TextInput style={[styles.input, {height: 60}]} multiline value={formData.address} onChangeText={t => setFormData({...formData, address: t})} placeholder="Enter address" />
 
@@ -319,6 +406,21 @@ const styles = StyleSheet.create({
   radioBtnActive: { backgroundColor: '#FFF7ED', borderColor: '#F97316' },
   radioText: { color: '#4B5563' },
   radioTextActive: { color: '#F97316', fontWeight: 'bold' },
+  
+  // Dropdown Styles
+  dropdownBtn: { 
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, backgroundColor: '#FFF'
+  },
+  dropdownText: { fontSize: 14, color: '#374151' },
+  dropdownList: { 
+      borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, marginTop: 4, backgroundColor: '#FFF',
+      maxHeight: 150 
+  },
+  dropdownItem: { flexDirection: 'row', justifyContent: 'space-between', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  dropdownItemSelected: { backgroundColor: '#FFF7ED' },
+  dropdownItemText: { fontSize: 14, color: '#374151' },
+
   submitBtn: { backgroundColor: '#F97316', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 24 },
   submitBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
 });

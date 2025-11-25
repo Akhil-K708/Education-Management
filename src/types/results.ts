@@ -5,8 +5,8 @@ export interface SubjectResult {
   paperTotal: number;
   assignmentObtained: number;
   assignmentTotal: number;
-  totalObtained: number; // Paper + Assignment
-  totalMax: number;      // Max Paper + Max Assignment
+  totalObtained: number; 
+  totalMax: number;      
   status: 'Pass' | 'Fail';
 }
 
@@ -24,10 +24,14 @@ export interface ExamResultData {
   finalMessage: string; 
 }
 
-// --- NEW TYPES FOR TEACHER MARKS ENTRY ---
+// --- UPDATED MARKS ENTRY TYPES (Matched with Backend) ---
 export interface MarksEntryItem {
   studentId: string;
-  marksObtained: number;
+  // Previous 'marksObtained' removed
+  paperObtained: number;
+  paperTotal: number;
+  assignmentObtained: number;
+  assignmentTotal: number;
   attendanceStatus: 'PRESENT' | 'ABSENT';
   remarks: string;
 }

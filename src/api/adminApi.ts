@@ -83,7 +83,44 @@ export interface TeacherDTO {
   gender: string;
   experience: number;
   address: string;
+  subjectIds?: string[];
 }
+
+export interface AssignSubjectTeacherDTO {
+  classSectionId: string;
+  subjectId: string;
+  teacherId: string;
+}
+
+export interface ClassSubjectMappingDTO {
+  id: string;
+  classSectionId: string;
+  subjectId: string;
+  subjectName: string;
+  teacherId: string;
+  teacherName: string;
+}
+
+export const getSubjectMappings = async (classSectionId: string): Promise<ClassSubjectMappingDTO[]> => {
+  try {
+    const response = await studentApi.get(`/subject/assign/${classSectionId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching subject mappings:", error);
+    return [];
+  }
+};
+
+// 2. Assign a Teacher to a Subject
+export const assignSubjectTeacher = async (data: AssignSubjectTeacherDTO) => {
+  try {
+    const response = await studentApi.post('/subject/assignSubjectTeacher', data);
+    return response.data;
+  } catch (error) {
+    console.error("Error assigning teacher to subject:", error);
+    throw error;
+  }
+};
  
 export const submitAdmission = async (admissionData: any, photoUri?: string) => {
   try {
@@ -386,4 +423,20 @@ export const deleteStudent = async (studentId: string) => {
     console.error("Error deleting student:", error);
     throw error;
   }
+};
+
+export const getUnassignedStudents = async (grade: string): Promise<StudentDTO[]> => {
+  try {
+    const response = await studentApi.get<StudentDTO[]>(`/students/unassigned/${grade}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching unassigned students:", error);
+    return [];
+  }
+};
+
+export const assignStudentToClass = async (classSectionId: string, studentId: string) => {
+    await studentApi.put(`/class-sections/${classSectionId}/assign-student`, null, {
+        params: { studentId }
+    });
 };
