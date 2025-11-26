@@ -15,6 +15,7 @@ export const adminMenu: MenuItem[] = [
   { label: 'Results', iconName: 'ribbon-outline', path: '/(app)/results' },
   { label: 'Transport', iconName: 'bus-outline', path: '/(app)/transport' },
   { label: 'Notice', iconName: 'megaphone-outline', path: '/(app)/notice' },
+  { label: 'Accounts', iconName: 'wallet-outline', path: '/(app)/account' },
 ];
 
 export const teacherMenu: MenuItem[] = [

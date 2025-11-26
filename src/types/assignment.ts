@@ -3,15 +3,15 @@ export interface Assignment {
   subjectId: string;
   title: string;
   description: string;
-  createdBy: string; 
+  createdBy: string;
   assignedTo: string;
   status: 'ASSIGNED' | 'COMPLETED' | 'EXPIRED';
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
-  assignedDate: string; 
+  assignedDate: string;
   dueDate: string;      
-  attachedFiles?: string; 
+  attachedFiles?: string;
 }
-
+ 
 export interface AssignmentSubmission {
   assignmentId: string;
   subjectId: string;
@@ -23,10 +23,10 @@ export interface AssignmentSubmission {
   reviewedBy?: string;
   status: 'SUBMITTED' | 'REVIEWED' | 'APPROVED' | 'REJECTED';
   relatedLinks?: string[];
-  relatedFileLinks?: string[]; 
+ 
 }
-
+ 
 export interface AssignmentCombined {
   assignment: Assignment;
-  submission?: AssignmentSubmission | null; 
+  submission?: AssignmentSubmission | null;
 }

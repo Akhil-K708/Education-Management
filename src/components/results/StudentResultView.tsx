@@ -1,16 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from 'react-native';
-import { getAvailableExams, getExamResult } from '../../api/resultsApi';
+import { getAvailableExams, getStudentExamResult } from '../../api/resultsApi';
+import { getStudentProfile } from '../../api/studentService';
 import { useAuth } from '../../context/AuthContext';
 import { ExamResultData } from '../../types/results';
 
@@ -21,61 +23,126 @@ export default function StudentResultView() {
   const isMobile = width < 768; 
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  
   const [examsList, setExamsList] = useState<{ id: string; name: string }[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<string>('');
+  const [classSectionId, setClassSectionId] = useState<string>('');
+  
   const [resultData, setResultData] = useState<ExamResultData | null>(null);
   const [isDropdownVisible, setIsDropdownVisible] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    const init = async () => {
-      const exams = await getAvailableExams();
-      setExamsList(exams);
-      if (exams.length > 0) {
-        setSelectedExamId(exams[0].id);
+  // --- 1. INITIAL DATA FETCH ---
+  const fetchInitialData = async () => {
+    if (!user?.username) return;
+    setLoading(true);
+    try {
+      // Get Student Profile for Class ID
+      const profile = await getStudentProfile(user.username);
+      if (profile.classSectionId) {
+          setClassSectionId(profile.classSectionId);
+          
+          // Get Exams
+          const exams = await getAvailableExams();
+          setExamsList(exams);
+          
+          // Select first exam by default if available
+          if (exams.length > 0) {
+             setSelectedExamId(exams[0].id);
+          }
+      } else {
+          setErrorMsg("Class section not assigned.");
       }
-    };
-    init();
-  }, []);
+    } catch (e) {
+      console.error("Error loading initial data", e);
+      setErrorMsg("Failed to load profile.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    if (!selectedExamId) return;
+    fetchInitialData();
+  }, [user]);
+
+  // --- 2. FETCH RESULT WHEN EXAM CHANGES ---
+  useEffect(() => {
+    if (!selectedExamId || !classSectionId || !user?.username) return;
+    
     const fetchResult = async () => {
       setLoading(true);
-      const data = await getExamResult(selectedExamId);
-      setResultData(data);
-      setLoading(false);
+      setErrorMsg(null);
+      setResultData(null);
+      
+      try {
+        const data = await getStudentExamResult(selectedExamId, user.username, classSectionId);
+        if (data) {
+            setResultData(data);
+        } else {
+            setErrorMsg("Results not yet published for this exam.");
+        }
+      } catch (e) {
+        setErrorMsg("Could not fetch results.");
+      } finally {
+        setLoading(false);
+      }
     };
+    
     fetchResult();
-  }, [selectedExamId]);
+  }, [selectedExamId, classSectionId]);
 
-  if (loading && !resultData) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
-  }
+  const onRefresh = () => {
+      setRefreshing(true);
+      if (selectedExamId && classSectionId) {
+          getStudentExamResult(selectedExamId, user!.username, classSectionId)
+            .then(data => {
+                if (data) setResultData(data);
+                else setErrorMsg("Results not yet published.");
+                setRefreshing(false);
+            })
+            .catch(() => setRefreshing(false));
+      } else {
+          fetchInitialData();
+      }
+  };
 
   const selectedExamName = examsList.find(e => e.id === selectedExamId)?.name || 'Select Exam';
 
+  if (loading && !refreshing && !resultData) {
+    return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
+  }
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
       <Text style={styles.pageTitle}>My Results</Text>
 
+      {/* EXAM SELECTOR */}
       <View style={styles.dropdownContainer}>
         <Text style={styles.dropdownLabel}>Examination:</Text>
         <TouchableOpacity
           style={styles.dropdownButton}
           onPress={() => setIsDropdownVisible(true)}
+          disabled={examsList.length === 0}
         >
           <Text style={styles.dropdownButtonText}>{selectedExamName}</Text>
           <Ionicons name="chevron-down" size={20} color="#374151" />
         </TouchableOpacity>
       </View>
 
+      {/* EXAM SELECTION MODAL */}
       <Modal visible={isDropdownVisible} transparent animationType="fade">
         <TouchableOpacity 
           style={styles.modalOverlay} 
           onPress={() => setIsDropdownVisible(false)}
         >
           <View style={styles.modalContent}>
-            {examsList.map((exam) => (
+            {examsList.length > 0 ? examsList.map((exam) => (
               <TouchableOpacity
                 key={exam.id}
                 style={styles.modalItem}
@@ -94,13 +161,25 @@ export default function StudentResultView() {
                   <Ionicons name="checkmark" size={20} color="#F97316" />
                 )}
               </TouchableOpacity>
-            ))}
+            )) : (
+                <Text style={{padding: 20, textAlign: 'center', color: '#6B7280'}}>No exams found</Text>
+            )}
           </View>
         </TouchableOpacity>
       </Modal>
 
+      {/* ERROR MESSAGE */}
+      {errorMsg && !resultData && (
+          <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
+              <Text style={styles.errorText}>{errorMsg}</Text>
+          </View>
+      )}
+
+      {/* RESULT DISPLAY */}
       {resultData && (
         <>
+          {/* 1. SUMMARY CARDS */}
           <View style={styles.summaryContainer}>
             <View style={[styles.summaryCard, !isMobile && styles.summaryCardWeb]}>
               <Text style={styles.summaryLabel}>No. of Subjects</Text>
@@ -108,25 +187,28 @@ export default function StudentResultView() {
             </View>
             <View style={[styles.summaryCard, !isMobile && styles.summaryCardWeb]}>
               <Text style={styles.summaryLabel}>Total Marks</Text>
-              <Text style={styles.summaryValue}>{resultData.stats.totalMarksObtained}</Text>
+              <Text style={styles.summaryValue}>{resultData.stats.totalMarksObtained} / {resultData.stats.maxTotalMarks}</Text>
             </View>
             <View style={[styles.summaryCard, !isMobile && styles.summaryCardWeb]}>
               <Text style={styles.summaryLabel}>Percentage</Text>
-              <Text style={styles.summaryValue}>{resultData.stats.percentage}</Text>
+              <Text style={[styles.summaryValue, {color: '#2563EB'}]}>{resultData.stats.percentage}</Text>
             </View>
             <View style={[styles.summaryCard, !isMobile && styles.summaryCardWeb]}>
               <Text style={styles.summaryLabel}>Rank</Text>
-              <Text style={styles.summaryValue}>{resultData.stats.rank}</Text>
+              <Text style={[styles.summaryValue, {color: '#F97316'}]}>{resultData.stats.rank}</Text>
             </View>
           </View>
 
+          {/* 2. MARKS TABLE */}
           <View style={styles.tableWrapper}>
+            {/* If mobile, wrap in horizontal scroll; if web, standard View */}
             <ScrollView 
               horizontal={isMobile} 
-              showsHorizontalScrollIndicator={true}
-              contentContainerStyle={!isMobile ? { width: '100%' } : {}}
+              showsHorizontalScrollIndicator={isMobile}
+              contentContainerStyle={isMobile ? {flexGrow: 1} : {width: '100%'}}
             >
-              <View style={!isMobile ? { width: '100%' } : {}}>
+              <View style={{minWidth: isMobile ? 600 : '100%', width: '100%'}}>
+                {/* Header */}
                 <View style={styles.tableHeaderRow}>
                   <View style={[styles.headerCell, isMobile ? styles.colSubject : styles.webColSubject]}>
                     <Text style={styles.headerText}>Subject</Text>
@@ -151,6 +233,7 @@ export default function StudentResultView() {
                   </View>
                 </View>
 
+                {/* Rows */}
                 {resultData.subjects.map((sub) => (
                   <View key={sub.id} style={styles.tableRow}>
                     <View style={[styles.cell, isMobile ? styles.colSubject : styles.webColSubject]}>
@@ -174,12 +257,17 @@ export default function StudentResultView() {
                       </Text>
                     </View>
                     <View style={[styles.cell, isMobile ? styles.colStatus : styles.webColStatus]}>
-                      <Text style={[
-                        styles.statusText,
-                        sub.status === 'Pass' ? styles.passText : styles.failText
+                      <View style={[
+                          styles.statusBadge, 
+                          sub.status === 'PASS' ? styles.passBadge : styles.failBadge
                       ]}>
-                        {sub.status.toUpperCase()}
-                      </Text>
+                          <Text style={[
+                            styles.statusText,
+                            sub.status === 'PASS' ? styles.passText : styles.failText
+                          ]}>
+                            {sub.status}
+                          </Text>
+                      </View>
                     </View>
                   </View>
                 ))}
@@ -187,17 +275,12 @@ export default function StudentResultView() {
             </ScrollView>
           </View>
 
+          {/* 3. FOOTER MESSAGE */}
           <View style={styles.footerContainer}>
+            <Text style={styles.footerLabel}>Remarks:</Text>
             <Text style={styles.footerMessage}>
               {resultData.finalMessage}
             </Text>
-            
-            <View style={styles.footerScore}>
-              <Text style={styles.footerScoreText}>
-                {resultData.stats.totalMarksObtained} / {resultData.stats.maxTotalMarks}
-              </Text>
-              <Text style={styles.footerScoreLabel}>Obtained / Total</Text>
-            </View>
           </View>
         </>
       )}
@@ -209,35 +292,63 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6', padding: 16 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   pageTitle: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 20 },
+  
+  // Dropdown
   dropdownContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   dropdownLabel: { fontSize: 16, fontWeight: '600', color: '#374151', marginRight: 10 },
-  dropdownButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', minWidth: 150, justifyContent: 'space-between' },
+  dropdownButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', minWidth: 180, justifyContent: 'space-between' },
   dropdownButtonText: { fontSize: 16, color: '#111827' },
+  
+  // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#FFF', width: '80%', maxWidth: 300, borderRadius: 12, padding: 10, elevation: 5 },
   modalItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   modalItemText: { fontSize: 16, color: '#374151' },
   modalItemTextSelected: { color: '#F97316', fontWeight: 'bold' },
+  
+  // Summary
   summaryContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 20, gap: 10 },
-  summaryCard: { width: '48%', backgroundColor: '#FFFFFF', borderRadius: 10, padding: 12, alignItems: 'center', elevation: 2, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 8 },
-  summaryCardWeb: { width: '23.5%', marginBottom: 0 },
-  summaryLabel: { fontSize: 13, color: '#6B7280', marginBottom: 5, textAlign: 'center' },
-  summaryValue: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  summaryCard: { width: '48%', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
+  summaryCardWeb: { width: '23%' },
+  summaryLabel: { fontSize: 13, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', fontWeight: '600' },
+  summaryValue: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
+  
+  // Table Wrapper
   tableWrapper: { backgroundColor: '#FFFFFF', borderRadius: 12, elevation: 2, overflow: 'hidden', marginBottom: 20, borderWidth: 1, borderColor: '#E5E7EB' },
   tableHeaderRow: { flexDirection: 'row', backgroundColor: '#F9FAFB', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', backgroundColor: '#FFFFFF' },
+  tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', backgroundColor: '#FFFFFF', alignItems: 'center' },
+  
+  // Cells
   headerCell: { padding: 12, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#E5E7EB' },
   cell: { padding: 12, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#F3F4F6' },
-  headerText: { fontSize: 12, fontWeight: 'bold', color: '#374151', textAlign: 'center' },
+  headerText: { fontSize: 11, fontWeight: 'bold', color: '#374151', textAlign: 'center', textTransform: 'uppercase' },
   cellText: { fontSize: 13, color: '#1F2937' },
-  cellTextSubject: { fontSize: 14, fontWeight: '600', color: '#111827', textTransform: 'capitalize' },
-  colSubject: { width: 120 }, colNum: { width: 80 }, colStatus: { width: 90, borderRightWidth: 0 },
-  webColSubject: { flex: 2 }, webColNum: { flex: 1 }, webColStatus: { flex: 1, borderRightWidth: 0 },
-  statusText: { fontWeight: 'bold', fontSize: 12 },
-  passText: { color: '#10B981' }, failText: { color: '#EF4444' },
-  footerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 20 },
-  footerMessage: { flex: 1, fontSize: 14, color: '#4B5563', fontStyle: 'italic', marginRight: 10 },
-  footerScore: { alignItems: 'center', borderWidth: 1, borderColor: '#111827', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  footerScoreText: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
-  footerScoreLabel: { fontSize: 10, color: '#6B7280' },
+  cellTextSubject: { fontSize: 14, fontWeight: '600', color: '#111827', textTransform: 'capitalize', textAlign: 'left' },
+  
+  // --- MOBILE COLUMN WIDTHS (Fixed) ---
+  colSubject: { width: 140, alignItems: 'flex-start' }, 
+  colNum: { width: 70 }, 
+  colStatus: { width: 90, borderRightWidth: 0 },
+
+  // --- WEB COLUMN WIDTHS (Flexible - Full Width) ---
+  webColSubject: { flex: 2, alignItems: 'flex-start' }, // More space for Subject Name
+  webColNum: { flex: 1 }, // Equal space for marks
+  webColStatus: { flex: 1, borderRightWidth: 0 },
+  
+  // Badges
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  passBadge: { backgroundColor: '#D1FAE5' },
+  failBadge: { backgroundColor: '#FEE2E2' },
+  statusText: { fontSize: 11, fontWeight: 'bold' },
+  passText: { color: '#059669' }, 
+  failText: { color: '#DC2626' },
+  
+  // Footer
+  footerContainer: { backgroundColor: '#FFFFFF', padding: 20, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 20 },
+  footerLabel: { fontSize: 14, fontWeight: 'bold', color: '#374151', marginBottom: 4 },
+  footerMessage: { fontSize: 16, color: '#4B5563', fontStyle: 'italic', lineHeight: 22 },
+  
+  // Error State
+  errorContainer: { alignItems: 'center', marginTop: 50 },
+  errorText: { marginTop: 10, color: '#6B7280', fontSize: 16 },
 });

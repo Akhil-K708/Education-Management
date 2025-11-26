@@ -5,24 +5,46 @@ export interface FeeSummary {
 }
 
 export interface FeeItem {
-  id: string;
-  title: string;
+  feeId: string;
+  feeName: string;
   dueDate: string;
   amount: number;
-  status: 'OVERDUE' | 'PENDING' | 'PAID';
+  amountPaid: number;
+  status: string;
 }
 
 export interface PaymentHistoryItem {
-  id: string;
-  date: string;
+  paymentId: string;
+  paymentDate: string;
   amount: number;
-  type: string;
-  receipt: string;
-  method: string; 
+  method: string;
+  transactionRef: string;
 }
 
 export interface StudentFeeDetails {
   summary: FeeSummary;
-  pendingFees: FeeItem[];
+  pendingFees: FeeItem[]; // This will map from backend 'pendingFees' or 'allFees'
+  allFees: FeeItem[];
   paymentHistory: PaymentHistoryItem[];
+}
+
+// --- ADMIN TYPES (Matches Backend DTOs) ---
+
+export interface ClassFeeStatsDTO {
+  classSectionId: string;
+  className: string;
+  section: string;
+  totalExpectedFee: number;
+  totalCollectedFee: number;
+  totalPendingFee: number;
+}
+
+export interface StudentFeeStatusDTO {
+  studentId: string;
+  studentName: string;
+  rollNumber: string;
+  totalFee: number;
+  paidAmount: number;
+  balanceAmount: number;
+  status: 'PAID' | 'PARTIAL' | 'PENDING';
 }

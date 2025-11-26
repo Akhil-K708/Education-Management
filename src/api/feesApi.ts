@@ -1,35 +1,55 @@
-// src/api/feesApi.ts
+import { ClassFeeStatsDTO, StudentFeeDetails, StudentFeeStatusDTO } from '../types/fees';
+import { studentApi } from './axiosInstance';
 
-import { StudentFeeDetails } from '../types/fees';
-// import { studentApi } from './axiosInstance'; // Backend వచ్చినప్పుడు దీన్ని వాడాలి
+// --- STUDENT ENDPOINTS ---
 
-// --- MOCK DATA ---
-const MOCK_FEE_DATA: StudentFeeDetails = {
-  summary: {
-    totalFee: 45000,
-    paidAmount: 25000,
-    pendingAmount: 20000,
-  },
-  pendingFees: [
-    { id: '1', title: 'Term 2 Tuition Fee', dueDate: '2025-11-10', amount: 15000, status: 'OVERDUE' },
-    { id: '2', title: 'Transport Fee (Nov)', dueDate: '2025-11-05', amount: 2500, status: 'OVERDUE' },
-    { id: '3', title: 'Term 3 Tuition Fee', dueDate: '2026-02-10', amount: 2500, status: 'PENDING' },
-  ],
-  paymentHistory: [
-    { id: '101', date: '2025-06-15', amount: 15000, type: 'Term 1 Fee', receipt: 'REC001', method: 'Online' },
-    { id: '102', date: '2025-06-15', amount: 5000, type: 'Admission Fee', receipt: 'REC002', method: 'Cash' },
-    { id: '103', date: '2025-09-10', amount: 5000, type: 'Transport (Term 1)', receipt: 'REC003', method: 'Online' },
-  ]
+export const getStudentFeeDetails = async (studentId: string): Promise<StudentFeeDetails | null> => {
+  try {
+    const response = await studentApi.get<StudentFeeDetails>(`/fee/student/dashboard/${studentId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching student fee details:", error);
+    return null;
+  }
 };
 
-export const getStudentFeeDetails = async (studentId: string): Promise<StudentFeeDetails> => {
-  // Backend Integration Future Plan:
-  // const response = await studentApi.get<StudentFeeDetails>(`/fees/${studentId}`);
-  // return response.data;
+// --- ADMIN ENDPOINTS ---
 
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(MOCK_FEE_DATA);
-    }, 800); // Simulate network delay
-  });
+export const getAdminFeeStats = async (): Promise<ClassFeeStatsDTO[]> => {
+  try {
+    const response = await studentApi.get<ClassFeeStatsDTO[]>('/fee/admin/dashboard/stats');
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching admin fee stats:", error);
+    return [];
+  }
+};
+
+export const getClassFeeStatus = async (classSectionId: string): Promise<StudentFeeStatusDTO[]> => {
+  try {
+    const response = await studentApi.get<StudentFeeStatusDTO[]>(`/fee/admin/class-status/${classSectionId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching class fee status:", error);
+    return [];
+  }
+};
+
+// ✅ NEW: Interface for Bulk Creation
+export interface CreateFeeRequest {
+  studentId: string;
+  feeName: string;
+  amount: number;
+  dueDate: string;
+}
+
+// ✅ NEW: Function to Assign Fees
+export const assignFeesBulk = async (fees: CreateFeeRequest[]) => {
+  try {
+    const response = await studentApi.post('/fee/admin/bulk-create', fees);
+    return response.data;
+  } catch (error) {
+    console.error("Error assigning fees:", error);
+    throw error;
+  }
 };

@@ -2,13 +2,9 @@ import { ExamResultData, SubjectMarksEntryRequest } from '../types/results';
 import { studentApi } from './axiosInstance';
 
 // --- COMMON: GET ALL EXAMS ---
-// Backend: GET /api/student/exams/all
 export const getAvailableExams = async (): Promise<{ id: string; name: string }[]> => {
   try {
     const response = await studentApi.get<any[]>('/exams/all');
-    // Status 'PUBLISHED' unna exams ye student ki chupinchali ane logic
-    // ikkada rayachu leda backend lo filter cheyachu.
-    // Present anni exams pampistunnanu.
     return response.data.map((exam) => ({
       id: exam.examId,
       name: exam.examName,
@@ -20,7 +16,6 @@ export const getAvailableExams = async (): Promise<{ id: string; name: string }[
 };
 
 // --- STUDENT: GET MY RESULTS ---
-// Backend: GET /api/student/exams/result/{examId}/{studentId}?classSectionId={...}
 export const getStudentExamResult = async (
   examId: string, 
   studentId: string, 
@@ -33,7 +28,7 @@ export const getStudentExamResult = async (
     );
     const data = response.data;
 
-    // --- MAPPING BACKEND DTO TO FRONTEND TYPE ---
+    // Mapping Backend DTO to Frontend Type
     const resultData: ExamResultData = {
         examId: data.examId,
         examName: data.examName,
@@ -53,7 +48,7 @@ export const getStudentExamResult = async (
             assignmentTotal: sub.assignmentTotal,
             totalObtained: sub.subjectTotalObtained,
             totalMax: sub.subjectTotalMax,
-            status: sub.status // "PASS" or "FAIL"
+            status: sub.status
         })),
         finalMessage: getRemarks(data.percentage)
     };
@@ -62,31 +57,45 @@ export const getStudentExamResult = async (
 
   } catch (error: any) {
     console.error("Error fetching student result:", error);
-    // Backend throws error if result not published yet
     return null; 
   }
 };
 
 // --- TEACHER: ENTER MARKS ---
-// Backend: PUT /api/student/exams/enter-marks/{subjectId}
 export const enterMarks = async (subjectId: string, data: SubjectMarksEntryRequest): Promise<string> => {
   try {
     const response = await studentApi.put(`/exams/enter-marks/${subjectId}`, data);
-    return response.data; // Returns success message
+    return response.data;
   } catch (error) {
     console.error("Error entering marks:", error);
     throw error;
   }
 };
 
-// --- TEACHER: GET SUBJECTS FOR CLASS (For Dropdown Filter) ---
-// Backend: GET /api/student/subject/assign/{classSectionId}
+// --- TEACHER: GET SUBJECTS FOR CLASS ---
 export const getSubjectMappings = async (classSectionId: string): Promise<any[]> => {
   try {
     const response = await studentApi.get(`/subject/assign/${classSectionId}`);
     return response.data;
   } catch (error) {
     console.error("Error fetching subject mappings:", error);
+    return [];
+  }
+};
+
+// --- ADMIN: GET CLASS EXAM RESULTS (Detailed View) ---
+// Backend: GET /api/student/exams/class-result/{examId}/{classSectionId}
+export const getClassExamResults = async (
+  examId: string, 
+  classSectionId: string
+): Promise<any[]> => {
+  try {
+    const response = await studentApi.get<any[]>(
+      `/exams/class-result/${examId}/${classSectionId}`
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching class results:", error);
     return [];
   }
 };
@@ -111,24 +120,6 @@ export const publishResult = async (
   }
 };
 
-// --- ADMIN: VIEW EXAM RECORDS (Before Publishing) ---
-// Backend: GET /api/student/exams/records/{examId}/{classSectionId}/{subjectId}
-export const getExamRecords = async (
-  examId: string, 
-  classSectionId: string, 
-  subjectId: string
-): Promise<any[]> => {
-  try {
-    const response = await studentApi.get(
-      `/exams/records/${examId}/${classSectionId}/${subjectId}`
-    );
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching exam records:", error);
-    return [];
-  }
-};
-
 // --- HELPER UTILS ---
 function getOrdinal(n: number): string {
     const s = ["th", "st", "nd", "rd"];
@@ -137,9 +128,9 @@ function getOrdinal(n: number): string {
 }
 
 function getRemarks(percentage: number): string {
-    if (percentage >= 90) return "Outstanding performance! Keep it up.";
-    if (percentage >= 75) return "Excellent work! You passed with Distinction.";
-    if (percentage >= 60) return "Good job! You passed with First Class.";
-    if (percentage >= 50) return "You passed. Try to improve next time.";
-    return "Better luck next time. Work harder!";
+    if (percentage >= 90) return "Outstanding performance!";
+    if (percentage >= 75) return "Excellent work!";
+    if (percentage >= 60) return "Good job!";
+    if (percentage >= 50) return "You passed.";
+    return "Work harder next time.";
 }

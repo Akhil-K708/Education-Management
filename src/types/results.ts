@@ -7,7 +7,7 @@ export interface SubjectResult {
   assignmentTotal: number;
   totalObtained: number; 
   totalMax: number;      
-  status: 'Pass' | 'Fail';
+  status: string;
 }
 
 export interface ExamResultData {
