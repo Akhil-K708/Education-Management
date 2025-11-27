@@ -126,7 +126,6 @@ export const submitAdmission = async (admissionData: any, photoUri?: string) => 
   try {
     const formData = new FormData();
  
-    // ✅ Correct JSON part for @RequestPart("data")
     if (Platform.OS === "web") {
       const jsonBlob = new Blob(
         [JSON.stringify(admissionData)],
@@ -141,7 +140,6 @@ export const submitAdmission = async (admissionData: any, photoUri?: string) => 
       } as any);
     }
  
-    // ✅ Append photo only if selected
     if (photoUri) {
       if (Platform.OS === "web") {
         const blob = await fetch(photoUri).then((r) => r.blob());
@@ -155,14 +153,13 @@ export const submitAdmission = async (admissionData: any, photoUri?: string) => 
       }
     }
  
-    // ✅ Use fetch instead of Axios for multipart reliability
+    // Hardcoded URL based on your config - Consider moving to environment var
     const response = await fetch(
       "http://192.168.0.113:8080/api/student/admission",
       {
         method: "POST",
         headers: {
           Accept: "application/json",
-          // ❗ DO NOT set Content-Type here
         },
         body: formData,
       }
@@ -196,7 +193,7 @@ export const approveAdmission = async (admissionNumber: string, approvedBy: stri
   try {
     const response = await studentApi.post(`/approve/${admissionNumber}`, {
         approvedBy: approvedBy,
-        academicYear: '2025-2026' // Default or Dynamic
+        academicYear: '2025-2026' 
     });
     return response.data;
   } catch (error) {
@@ -215,6 +212,7 @@ export const rejectAdmission = async (admissionNumber: string) => {
     throw error;
   }
 };
+
 // --- CLASS APIs ---
 export const getAllClassSections = async (): Promise<ClassSectionDTO[]> => {
   try {
@@ -315,12 +313,21 @@ export const getAllStudents = async (): Promise<StudentDTO[]> => {
     throw error;
   }
 };
+
+// 🔥 NEW: GET GENDER PERCENTAGE FOR DASHBOARD
+export const getGenderStats = async (): Promise<any> => {
+  try {
+    const response = await studentApi.get('/dashboard/gender-percentage');
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching gender stats:", error);
+    return { Male: 50, Female: 50 }; // Default fallback
+  }
+};
  
-// --- SUBJECT UPDATES ---
-// Edit Subject
+// --- UPDATES & DELETE ---
 export const updateSubject = async (subjectId: string, data: SubjectDTO): Promise<SubjectDTO> => {
   try {
-    // Backend: PUT /api/student/subject/{subjectId}
     const response = await studentApi.put<SubjectDTO>(`/subject/${subjectId}`, data);
     return response.data;
   } catch (error) {
@@ -329,11 +336,8 @@ export const updateSubject = async (subjectId: string, data: SubjectDTO): Promis
   }
 };
  
-// --- TEACHER UPDATES ---
-// Edit Teacher
 export const updateTeacher = async (teacherId: string, data: TeacherDTO): Promise<TeacherDTO> => {
   try {
-    // Backend: PUT /api/student/teacher/{teacherId}
     const response = await studentApi.put<TeacherDTO>(`/teacher/${teacherId}`, data);
     return response.data;
   } catch (error) {
@@ -342,11 +346,8 @@ export const updateTeacher = async (teacherId: string, data: TeacherDTO): Promis
   }
 };
  
-// --- CLASS UPDATES ---
-// Edit Class Section
 export const updateClassSection = async (classSectionId: string, data: ClassSectionDTO): Promise<ClassSectionDTO> => {
   try {
-    // Backend: PUT /api/student/class-sections/{classSectionId}
     const response = await studentApi.put<ClassSectionDTO>(`/class-sections/${classSectionId}`, data);
     return response.data;
   } catch (error) {
@@ -355,13 +356,10 @@ export const updateClassSection = async (classSectionId: string, data: ClassSect
   }
 };
  
-// --- STUDENT UPDATES & DELETE ---
-// Edit Student (Supports Photo Update)
 export const updateStudent = async (studentId: string, studentData: any, photoUri?: string) => {
   try {
     const formData = new FormData();
  
-    // ✅ Correct JSON part for Spring Boot @RequestPart("data")
     if (Platform.OS === "web") {
       formData.append(
         "data",
@@ -375,7 +373,6 @@ export const updateStudent = async (studentId: string, studentData: any, photoUr
       } as any);
     }
  
-    // ✅ Append PHOTO only if new
     if (photoUri && !photoUri.startsWith("http")) {
       if (Platform.OS === "web") {
         const blob = await fetch(photoUri).then(r => r.blob());
@@ -389,14 +386,12 @@ export const updateStudent = async (studentId: string, studentData: any, photoUr
       }
     }
  
-    // ✅ PUT request — matches backend mapping
     const response = await fetch(
       `http://192.168.0.113:8080/api/student/${studentId}`,
       {
         method: "PUT",
         headers: {
           Accept: "application/json",
-          // ❗ DO NOT set Content-Type here
         },
         body: formData,
       }
@@ -417,7 +412,6 @@ export const updateStudent = async (studentId: string, studentData: any, photoUr
 
 export const deleteStudent = async (studentId: string) => {
   try {
-    // Backend: DELETE /api/student/{studentId}
     await studentApi.delete(`/${studentId}`);
   } catch (error) {
     console.error("Error deleting student:", error);

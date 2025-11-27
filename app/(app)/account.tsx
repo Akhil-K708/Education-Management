@@ -2,19 +2,19 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from 'react-native';
 import { getAllClassSections } from '../../src/api/adminApi';
 import { assignFeesBulk, CreateFeeRequest, getAdminFeeStats, getClassFeeStatus } from '../../src/api/feesApi';
@@ -41,15 +41,11 @@ const WebDateInput = ({ value, onChange }: { value: Date, onChange: (d: Date) =>
 // --- SORTING HELPER ---
 const sortClasses = (data: ClassFeeStatsDTO[]) => {
     return data.sort((a, b) => {
-        // Extract numbers from Class Name (e.g. "10" from "Class 10")
         const numA = parseInt(a.className.replace(/\D/g, '')) || 0;
         const numB = parseInt(b.className.replace(/\D/g, '')) || 0;
-
         if (numA !== numB) {
-            return numA - numB; // Sort numerically
+            return numA - numB; 
         }
-        
-        // If class numbers are same, sort by Section (A, B, C)
         return a.section.localeCompare(b.section);
     });
 };
@@ -60,7 +56,6 @@ export default function AccountScreen() {
   
   const { width } = useWindowDimensions();
   const isWeb = width > 768;
-  // Changed to 3 columns for compact view on Web
   const numColumns = isWeb ? 3 : 1;
 
   const [loading, setLoading] = useState(true);
@@ -79,7 +74,7 @@ export default function AccountScreen() {
   // Assign Fee Modal
   const [assignModalVisible, setAssignModalVisible] = useState(false);
   const [classList, setClassList] = useState<any[]>([]);
-  const [assignStep, setAssignStep] = useState(1); // 1: Details, 2: Student List customization
+  const [assignStep, setAssignStep] = useState(1); 
   const [assignLoading, setAssignLoading] = useState(false);
 
   // Assign Form Data
@@ -113,10 +108,7 @@ export default function AccountScreen() {
             col += c.totalCollectedFee || 0;
             pen += c.totalPendingFee || 0;
         });
-        
-        // Apply Sorting
         const sortedData = sortClasses(data);
-
         setClassStats(sortedData);
         setTotalSchoolStats({ expected: exp, collected: col, pending: pen });
     } catch(e) { console.error(e); } 
@@ -126,7 +118,6 @@ export default function AccountScreen() {
   const fetchClasses = async () => {
       try {
           const classes = await getAllClassSections();
-          // Sort for Dropdown
           const sorted = classes.sort((a, b) => {
              const numA = parseInt(a.className.replace(/\D/g, '')) || 0;
              const numB = parseInt(b.className.replace(/\D/g, '')) || 0;
@@ -142,7 +133,6 @@ export default function AccountScreen() {
     fetchData();
   };
 
-  // --- VIEW CLASS DETAILS ---
   const handleClassPress = async (cls: ClassFeeStatsDTO) => {
       setSelectedClassView(cls);
       setViewModalVisible(true);
@@ -154,7 +144,6 @@ export default function AccountScreen() {
       finally { setListLoading(false); }
   };
 
-  // --- ASSIGN FEE LOGIC ---
   const handleNextStep = async () => {
       if (!selectedClassId || !feeName) {
           Alert.alert("Error", "Please fill Class and Fee Name");
@@ -217,6 +206,10 @@ export default function AccountScreen() {
 
   const handleSubmitAssignment = async () => {
       const payload: CreateFeeRequest[] = [];
+      
+      // 🔥 FIX: Determine if this is Extra Fee (Fixed Amount)
+      const isExtraFee = feeType === 'FIXED';
+
       Object.keys(studentCustomization).forEach(id => {
           const item = studentCustomization[id];
           if (item.selected && item.amount) {
@@ -224,7 +217,8 @@ export default function AccountScreen() {
                   studentId: id,
                   feeName: feeName,
                   amount: parseFloat(item.amount),
-                  dueDate: dueDate.toISOString().split('T')[0]
+                  dueDate: dueDate.toISOString().split('T')[0],
+                  isExtra: isExtraFee // 🔥 Passing flag to Backend
               });
           }
       });
@@ -333,7 +327,10 @@ export default function AccountScreen() {
   const renderAssignModal = () => (
       <Modal visible={assignModalVisible} animationType="slide" transparent>
           <View style={styles.modalOverlay}>
-              <View style={styles.modalContentLarge}>
+              <View style={[
+                  styles.modalContentLarge, 
+                  !isWeb && { height: '85%', width: '95%', padding: 15 } 
+              ]}>
                   <View style={styles.modalHeader}>
                       <Text style={styles.modalTitle}>Assign Fee {assignStep === 2 && `(Review)`}</Text>
                       <TouchableOpacity onPress={() => setAssignModalVisible(false)}>
@@ -373,7 +370,7 @@ export default function AccountScreen() {
                                 style={[styles.radioBtn, feeType === 'FIXED' && styles.radioActive]} 
                                 onPress={() => setFeeType('FIXED')}
                               >
-                                  <Text style={[styles.radioText, feeType === 'FIXED' && styles.radioTextActive]}>Fixed Amount</Text>
+                                  <Text style={[styles.radioText, feeType === 'FIXED' && styles.radioTextActive]}>Fixed Amount (Extra)</Text>
                               </TouchableOpacity>
                           </View>
 
@@ -381,12 +378,13 @@ export default function AccountScreen() {
                               <>
                                 <Text style={styles.label}>Amount (₹)</Text>
                                 <TextInput style={styles.input} value={fixedAmount} onChangeText={setFixedAmount} placeholder="e.g. 2000 (Uniform/Books)" keyboardType="numeric" />
+                                <Text style={[styles.hintText, {color: '#EF4444'}]}>* This will be added as an EXTRA charge to the student's total fee.</Text>
                               </>
                           ) : (
                               <>
                                 <Text style={styles.label}>Percentage of Total Fee (%)</Text>
                                 <TextInput style={styles.input} value={percentage} onChangeText={setPercentage} placeholder="e.g. 33.3 (For 1st Term)" keyboardType="numeric" />
-                                <Text style={styles.hintText}>* Calculates based on each student's admission fee.</Text>
+                                <Text style={styles.hintText}>* Calculates portion of existing total fee.</Text>
                               </>
                           )}
 
@@ -408,7 +406,7 @@ export default function AccountScreen() {
                           </TouchableOpacity>
                       </ScrollView>
                   ) : (
-                      <View style={{flex: 1}}>
+                      <View style={{flex: 1, display: 'flex', flexDirection: 'column'}}>
                           <View style={styles.infoBanner}>
                               <Ionicons name="information-circle" size={20} color="#2563EB" />
                               <Text style={styles.infoText}>Review amounts. Uncheck to exclude students.</Text>
@@ -416,14 +414,17 @@ export default function AccountScreen() {
                           
                           <View style={styles.tableHeader}>
                               <Text style={[styles.th, {flex: 1.5}]}>Student</Text>
-                              <Text style={[styles.th, {flex: 1, textAlign: 'right'}]}>Total Fee</Text>
+                              {feeType === 'PERCENTAGE' && (
+                                  <Text style={[styles.th, {flex: 1, textAlign: 'right'}]}>Total Fee</Text>
+                              )}
                               <Text style={[styles.th, {width: 90, textAlign: 'center'}]}>Assign</Text>
                           </View>
 
                           <FlatList 
                               data={Object.keys(studentCustomization)}
                               keyExtractor={id => id}
-                              contentContainerStyle={{paddingBottom: 20}}
+                              contentContainerStyle={{paddingBottom: 20, flexGrow: 1}}
+                              style={{flex: 1}} 
                               renderItem={({item: id}) => {
                                   const data = studentCustomization[id];
                                   return (
@@ -435,9 +436,15 @@ export default function AccountScreen() {
                                               <Text style={styles.rowTitle} numberOfLines={1}>{data.name}</Text>
                                               <Text style={styles.rowSub}>{id}</Text>
                                           </View>
-                                          <View style={{flex: 1, alignItems: 'flex-end', paddingRight: 10}}>
-                                              <Text style={styles.totalFeeText}>₹{data.totalFee.toLocaleString()}</Text>
-                                          </View>
+                                          
+                                          {feeType === 'PERCENTAGE' ? (
+                                              <View style={{flex: 1, alignItems: 'flex-end', paddingRight: 10}}>
+                                                  <Text style={styles.totalFeeText}>₹{data.totalFee.toLocaleString()}</Text>
+                                              </View>
+                                          ) : (
+                                              <View style={{flex: 0.1}} /> 
+                                          )}
+
                                           <TextInput 
                                               style={styles.amountInput} 
                                               value={data.amount} 
@@ -594,7 +601,7 @@ const styles = StyleSheet.create({
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContentLarge: { backgroundColor: '#FFF', width: '100%', maxWidth: 550, borderRadius: 16, padding: 20, maxHeight: '90%' },
+  modalContentLarge: { backgroundColor: '#FFF', width: '100%', maxWidth: 550, borderRadius: 16, padding: 20, maxHeight: '90%', display: 'flex', flexDirection: 'column' },
   modalContainerFull: { flex: 1, backgroundColor: '#F9FAFB' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },

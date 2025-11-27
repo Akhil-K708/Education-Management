@@ -13,7 +13,9 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { getClassStudents, getDailyClassAttendance, getStudentAttendance, getTeacherClasses, markAttendance } from '../../api/attendanceApi';
+// 🔥 Updated Imports: Use getAllClassSections from adminApi for filtering
+import { getAllClassSections } from '../../api/adminApi';
+import { getClassStudents, getDailyClassAttendance, getStudentAttendance, markAttendance } from '../../api/attendanceApi';
 import { useAuth } from '../../context/AuthContext';
 
 // --- WEB INPUT COMPONENT ---
@@ -76,14 +78,26 @@ export default function TeacherAttendanceView() {
     if (!user?.username) return;
     setLoading(true);
     try {
-        const data = await getTeacherClasses(user.username);
-        setClasses(data);
-        if (data.length > 0) {
-            handleClassSelect(data[0].classSectionId);
+        // 🔥 BUG FIX: Fetch all sections and filter ONLY where I am the Class Teacher
+        const allSections = await getAllClassSections();
+        
+        // Filter Logic: Check if classTeacherId matches logged-in user ID
+        const myClassSections = allSections
+            .filter(c => c.classTeacherId === user.username)
+            .map(c => ({
+                ...c,
+                sectionName: c.section // Map section to sectionName for UI compatibility
+            }));
+
+        setClasses(myClassSections);
+
+        if (myClassSections.length > 0) {
+            handleClassSelect(myClassSections[0].classSectionId!);
         } else {
             setLoading(false);
         }
     } catch (e) {
+        console.error("Error fetching class teacher sections:", e);
         setLoading(false);
     }
   };
@@ -145,7 +159,7 @@ export default function TeacherAttendanceView() {
           await markAttendance(selectedClass, user?.username!, formattedDate, entries);
           Alert.alert("Success", `Attendance Updated for ${formattedDate}!`);
       } catch(e) {
-          Alert.alert("Error", "Failed to save attendance.");
+          Alert.alert("Error", "Failed to save attendance. Ensure you are the class teacher.");
       } finally {
           setLoading(false);
       }
@@ -171,6 +185,18 @@ export default function TeacherAttendanceView() {
       setShowDatePicker(false);
       if(date) setSelectedDate(date);
   };
+
+  // Show empty state if no class is assigned as Class Teacher
+  if (!loading && classes.length === 0) {
+      return (
+        <View style={styles.centered}>
+            <Ionicons name="school-outline" size={60} color="#D1D5DB" />
+            <Text style={{color: '#6B7280', marginTop: 10, fontSize: 16, textAlign: 'center'}}>
+                You are not assigned as a Class Teacher for any class.
+            </Text>
+        </View>
+      );
+  }
 
   if (loading && classes.length === 0) return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316"/></View>;
 

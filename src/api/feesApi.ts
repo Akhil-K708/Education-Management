@@ -1,4 +1,4 @@
-import { ClassFeeStatsDTO, StudentFeeDetails, StudentFeeStatusDTO } from '../types/fees';
+import { ClassFeeStatsDTO, PaymentHistoryItem, StudentFeeDetails, StudentFeeStatusDTO } from '../types/fees';
 import { studentApi } from './axiosInstance';
 
 // --- STUDENT ENDPOINTS ---
@@ -35,15 +35,25 @@ export const getClassFeeStatus = async (classSectionId: string): Promise<Student
   }
 };
 
-// ✅ NEW: Interface for Bulk Creation
+export const getAllPayments = async (): Promise<PaymentHistoryItem[]> => {
+  try {
+    const response = await studentApi.get<PaymentHistoryItem[]>('/fee/admin/payments');
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching all payments:", error);
+    return [];
+  }
+};
+
 export interface CreateFeeRequest {
   studentId: string;
   feeName: string;
   amount: number;
   dueDate: string;
+  // 🔥 FIX: Added isExtra flag
+  isExtra: boolean;
 }
 
-// ✅ NEW: Function to Assign Fees
 export const assignFeesBulk = async (fees: CreateFeeRequest[]) => {
   try {
     const response = await studentApi.post('/fee/admin/bulk-create', fees);

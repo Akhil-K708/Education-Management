@@ -160,7 +160,8 @@ export default function FeesScreen() {
   const renderHistoryItem = (item: PaymentHistoryItem) => (
     <View key={item.paymentId} style={styles.cardContainer}>
       <View style={styles.rowBetween}>
-        <View>
+        {/* 🔥 FIX: Added flex: 1 to allow text wrapping and prevent overflow */}
+        <View style={{ flex: 1, paddingRight: 8 }}>
           <Text style={styles.feeTitle}>Payment Received</Text>
           <Text style={styles.feeDate}>{new Date(item.paymentDate).toLocaleDateString()} • {item.method}</Text>
           <Text style={styles.receiptText}>Ref: {item.transactionRef}</Text>

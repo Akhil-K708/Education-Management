@@ -25,6 +25,8 @@ import {
 import { studentApi } from "../../api/axiosInstance";
 import { useAuth } from "../../context/AuthContext";
 import { Assignment, AssignmentSubmission } from "../../types/assignment";
+
+const API_BASE_URL = 'http://192.168.0.113:8080';
  
 export default function TeacherAssignmentsView() {
   const { state } = useAuth();
@@ -52,11 +54,15 @@ export default function TeacherAssignmentsView() {
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("");
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
  
-  // -------- OPEN SERVER FILE --------
-  const openAttachment = async (fileUrl: string) => {
+  // -------- OPEN FILE LINK --------
+  const openLink = async (fileUrl: string) => {
     try {
-      const fullUrl = `http://192.168.0.113:8080${fileUrl}`;
-      await Linking.openURL(fullUrl);
+      const fullUrl = fileUrl.startsWith('http') ? fileUrl : `${API_BASE_URL}${fileUrl}`;
+      if (Platform.OS === 'web') {
+        window.open(fullUrl, '_blank');
+      } else {
+        await Linking.openURL(fullUrl);
+      }
     } catch (e) {
       Alert.alert("Error", "Could not open file");
     }
@@ -69,9 +75,7 @@ export default function TeacherAssignmentsView() {
         type: "*/*",
         multiple: false,
       });
- 
       if (result.canceled) return;
- 
       const file = result.assets[0];
       setSelectedFile(file);
     } catch (err) {
@@ -84,19 +88,19 @@ export default function TeacherAssignmentsView() {
     try {
       setLoading(true);
       const data = await getTeacherAssignments(user.username);
- 
+      // Sort: Latest assignments first
       const sortedData = data.sort(
         (a, b) =>
           new Date(b.assignedDate).getTime() -
           new Date(a.assignedDate).getTime()
       );
- 
       setAssignments(sortedData);
     } finally {
       setLoading(false);
     }
   };
  
+  // --- 1. FETCH CLASSES ASSIGNED TO TEACHER ---
   const fetchClasses = async () => {
     try {
       const res = await studentApi.get(
@@ -105,22 +109,30 @@ export default function TeacherAssignmentsView() {
       setAssignedClasses(res.data);
  
       if (res.data.length > 0) {
-        fetchSubjects(res.data[0].classSectionId);
+        // Don't auto-select immediately, let user choose or select first
+        // But for better UX, we can leave it empty until they click
+        // fetchSubjects(res.data[0].classSectionId);
       }
     } catch (e) {
       console.log(e);
     }
   };
  
+  // --- 2. FETCH SUBJECTS (FILTERED BY TEACHER) ---
   const fetchSubjects = async (classId: string) => {
     try {
       setSelectedClass(classId);
+      setSelectedSubject(""); // Reset subject when class changes
  
       const res = await studentApi.get(`/subject/assign/${classId}`);
-      setSubjectsForClass(res.data);
+      
+      // 🔥 BUG FIX: Filter subjects so ONLY subjects assigned to THIS teacher show up
+      const mySubjects = res.data.filter((sub: any) => sub.teacherId === user?.username);
+      
+      setSubjectsForClass(mySubjects);
  
-      if (res.data.length > 0) {
-        setSelectedSubject(res.data[0].subjectId);
+      if (mySubjects.length > 0) {
+        setSelectedSubject(mySubjects[0].subjectId);
       }
     } catch (e) {
       console.log(e);
@@ -134,14 +146,12 @@ export default function TeacherAssignmentsView() {
  
   const handleCreate = async () => {
     if (!newTitle || !selectedClass || !selectedSubject) {
-      Alert.alert("Error", "All required fields must be filled!");
+      Alert.alert("Error", "Please select Class, Subject and enter Title!");
       return;
     }
  
     try {
       const formData = new FormData();
- 
-      // -------- JSON PART (IMPORTANT FIX) --------
       const payload = {
         title: newTitle,
         description: newDesc,
@@ -150,13 +160,11 @@ export default function TeacherAssignmentsView() {
       };
  
       if (Platform.OS === "web") {
-        // Web needs Blob
         formData.append(
           "data",
           new Blob([JSON.stringify(payload)], { type: "application/json" })
         );
       } else {
-        // Mobile needs { string: ... }
         formData.append("data", {
           name: "data.json",
           type: "application/json",
@@ -164,15 +172,11 @@ export default function TeacherAssignmentsView() {
         } as any);
       }
  
-      // -------- FILE PART --------
       if (selectedFile) {
         if (Platform.OS === "web") {
-          // On web, convert file to Blob
           const fileBlob = await fetch(selectedFile.uri).then((r) => r.blob());
- 
           formData.append("file", fileBlob, selectedFile.name);
         } else {
-          // Mobile
           formData.append("file", {
             uri: selectedFile.uri,
             name: selectedFile.name,
@@ -181,7 +185,6 @@ export default function TeacherAssignmentsView() {
         }
       }
  
-      // -------- SEND REQUEST --------
       await createAssignment(
         user?.username!,
         selectedSubject,
@@ -190,9 +193,10 @@ export default function TeacherAssignmentsView() {
       );
  
       Alert.alert("Success", "Assignment created!");
- 
       setCreateModalVisible(false);
       setSelectedFile(null);
+      setNewTitle("");
+      setNewDesc("");
       fetchAssignments();
     } catch (e) {
       console.log("Create assignment error:", e);
@@ -200,11 +204,9 @@ export default function TeacherAssignmentsView() {
     }
   };
  
-  // -------- VIEW SUBMISSIONS --------
   const handleViewSubmissions = async (assignment: Assignment) => {
     setSelectedAssignmentId(assignment.assignmentId);
     setSelectedSubjectId(assignment.subjectId);
- 
     try {
       const subs = await getAssignmentSubmissions(
         assignment.assignmentId,
@@ -232,45 +234,27 @@ export default function TeacherAssignmentsView() {
           reviewedBy: user?.username!,
         }
       );
- 
       const updated = currentSubmissions.map((s) =>
         s.submissionNumber === sub.submissionNumber ? { ...s, status } : s
       );
- 
       setCurrentSubmissions(updated);
     } catch (e) {
       Alert.alert("Error", "Failed to update status");
     }
   };
  
-  // -------- LOADING SCREEN --------
-  if (loading)
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#F97316" />
-      </View>
-    );
- 
-  // ======================================================================
-  //                                 UI
-  // ======================================================================
+  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
  
   return (
     <View style={styles.container}>
-      {/* HEADER */}
       <View style={styles.headerRow}>
         <Text style={styles.pageTitle}>Assignments</Text>
- 
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setCreateModalVisible(true)}
-        >
+        <TouchableOpacity style={styles.addButton} onPress={() => setCreateModalVisible(true)}>
           <Ionicons name="add" size={24} color="#FFF" />
           <Text style={styles.addButtonText}>Create</Text>
         </TouchableOpacity>
       </View>
  
-      {/* ASSIGNMENTS LIST */}
       <FlatList
         data={assignments}
         keyExtractor={(item) => item.assignmentId}
@@ -280,36 +264,16 @@ export default function TeacherAssignmentsView() {
               <Text style={styles.title}>{item.title}</Text>
               <Text style={styles.status}>{item.status}</Text>
             </View>
- 
-            {/* FILE VIEW */}
             {item.attachedFiles ? (
-              <TouchableOpacity
-                style={styles.fileButton}
-                onPress={() => openAttachment(item.attachedFiles!)}
-              >
-                <Ionicons
-                  name="document-text-outline"
-                  size={18}
-                  color="#2563EB"
-                />
+              <TouchableOpacity style={styles.fileButton} onPress={() => openLink(item.attachedFiles!)}>
+                <Ionicons name="document-text-outline" size={18} color="#2563EB"/>
                 <Text style={styles.fileButtonText}>View Attachment</Text>
               </TouchableOpacity>
             ) : null}
- 
-            <Text style={styles.subtitle}>
-              Class: {item.assignedTo} • Subject: {item.subjectId}
-            </Text>
- 
-            <Text style={styles.desc} numberOfLines={2}>
-              {item.description}
-            </Text>
- 
+            <Text style={styles.subtitle}>Class: {item.assignedTo} • Subject: {item.subjectId}</Text>
+            <Text style={styles.desc} numberOfLines={2}>{item.description}</Text>
             <View style={styles.divider} />
- 
-            <TouchableOpacity
-              style={styles.viewSubBtn}
-              onPress={() => handleViewSubmissions(item)}
-            >
+            <TouchableOpacity style={styles.viewSubBtn} onPress={() => handleViewSubmissions(item)}>
               <Text style={styles.viewSubText}>View Student Submissions</Text>
               <Ionicons name="chevron-forward" size={16} color="#2563EB" />
             </TouchableOpacity>
@@ -323,94 +287,54 @@ export default function TeacherAssignmentsView() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>New Assignment</Text>
  
-            {/* CLASS PICK */}
             <Text style={styles.label}>Select Class:</Text>
             <View style={styles.pillContainer}>
               {assignedClasses.map((c) => (
                 <TouchableOpacity
                   key={c.classSectionId}
-                  style={[
-                    styles.pill,
-                    selectedClass === c.classSectionId && styles.pillActive,
-                  ]}
+                  style={[styles.pill, selectedClass === c.classSectionId && styles.pillActive]}
                   onPress={() => fetchSubjects(c.classSectionId)}
                 >
-                  <Text
-                    style={[
-                      styles.pillText,
-                      selectedClass === c.classSectionId &&
-                        styles.pillTextActive,
-                    ]}
-                  >
+                  <Text style={[styles.pillText, selectedClass === c.classSectionId && styles.pillTextActive]}>
                     {c.className}-{c.sectionName}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
  
-            {/* SUBJECT PICK */}
             <Text style={styles.label}>Select Subject:</Text>
             <View style={styles.pillContainer}>
-              {subjectsForClass.map((s) => (
+              {subjectsForClass.length > 0 ? subjectsForClass.map((s) => (
                 <TouchableOpacity
                   key={s.subjectId}
-                  style={[
-                    styles.pill,
-                    selectedSubject === s.subjectId && styles.pillActive,
-                  ]}
+                  style={[styles.pill, selectedSubject === s.subjectId && styles.pillActive]}
                   onPress={() => setSelectedSubject(s.subjectId)}
                 >
-                  <Text
-                    style={[
-                      styles.pillText,
-                      selectedSubject === s.subjectId && styles.pillTextActive,
-                    ]}
-                  >
+                  <Text style={[styles.pillText, selectedSubject === s.subjectId && styles.pillTextActive]}>
                     {s.subjectName}
                   </Text>
                 </TouchableOpacity>
-              ))}
+              )) : (
+                  <Text style={{color: '#999', fontStyle: 'italic', fontSize: 12}}>Select a class to see assigned subjects</Text>
+              )}
             </View>
  
-            {/* TITLE */}
             <Text style={styles.label}>Title:</Text>
-            <TextInput
-              style={styles.input}
-              value={newTitle}
-              onChangeText={setNewTitle}
-              placeholder="Ex: Chapter 1 Homework"
-            />
+            <TextInput style={styles.input} value={newTitle} onChangeText={setNewTitle} placeholder="Ex: Chapter 1 Homework" />
  
-            {/* DESCRIPTION */}
             <Text style={styles.label}>Description:</Text>
-            <TextInput
-              style={[styles.input, { height: 80 }]}
-              multiline
-              value={newDesc}
-              onChangeText={setNewDesc}
-              placeholder="Details..."
-            />
+            <TextInput style={[styles.input, { height: 80 }]} multiline value={newDesc} onChangeText={setNewDesc} placeholder="Details..." />
  
-            {/* FILE PICK */}
             <Text style={styles.label}>Attach File:</Text>
             <TouchableOpacity style={styles.filePickBtn} onPress={pickFile}>
               <Ionicons name="attach" size={18} color="#F97316" />
-              <Text style={styles.filePickText}>
-                {selectedFile ? selectedFile.name : "Choose File"}
-              </Text>
+              <Text style={styles.filePickText}>{selectedFile ? selectedFile.name : "Choose File"}</Text>
             </TouchableOpacity>
  
-            {/* BUTTONS */}
             <View style={styles.modalFooter}>
-              <TouchableOpacity
-                onPress={() => {
-                  setCreateModalVisible(false);
-                  setSelectedFile(null);
-                }}
-              >
+              <TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedFile(null); }}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
- 
               <TouchableOpacity style={styles.saveBtn} onPress={handleCreate}>
                 <Text style={styles.saveText}>Post Assignment</Text>
               </TouchableOpacity>
@@ -419,7 +343,7 @@ export default function TeacherAssignmentsView() {
         </View>
       </Modal>
  
-      {/* STUDENT SUBMISSIONS MODAL */}
+      {/* SUBMISSIONS MODAL */}
       <Modal visible={submissionsModalVisible} animationType="slide">
         <View style={styles.fullScreenModal}>
           <View style={styles.fsHeader}>
@@ -428,61 +352,37 @@ export default function TeacherAssignmentsView() {
             </TouchableOpacity>
             <Text style={styles.fsTitle}>Submissions</Text>
           </View>
- 
           <FlatList
             data={currentSubmissions}
-            keyExtractor={(item) =>
-              item.submissionNumber?.toString() || Math.random().toString()
-            }
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No submissions yet.</Text>
-            }
+            keyExtractor={(item) => item.submissionNumber?.toString() || Math.random().toString()}
+            ListEmptyComponent={<Text style={styles.emptyText}>No submissions yet.</Text>}
             renderItem={({ item }) => (
               <View style={styles.subCard}>
-                <View>
-                  <Text style={styles.studentId}>
-                    Student: {item.studentId}
-                  </Text>
+                <View style={{flex:1}}>
+                  <Text style={styles.studentId}>Student: {item.studentId}</Text>
                   <Text style={styles.subNote}>{item.note}</Text>
- 
-                  {item.relatedLinks?.map((l, i) => (
-                    <Text key={i} style={styles.linkText}>
-                      {l}
-                    </Text>
-                  ))}
+                  
+                  {/* 🔥 LINK FIX: View Student Uploaded Files */}
+                  {item.relatedLinks && item.relatedLinks.length > 0 && (
+                      <View style={{marginTop: 5}}>
+                          {item.relatedLinks.map((link, i) => (
+                              <TouchableOpacity key={i} onPress={() => openLink(link)}>
+                                  <Text style={styles.linkText}>📄 View Attached File</Text>
+                              </TouchableOpacity>
+                          ))}
+                      </View>
+                  )}
                 </View>
- 
                 <View style={styles.actionCol}>
-                  <Text
-                    style={[
-                      styles.statusBadge,
-                      item.status === "APPROVED"
-                        ? { color: "green" }
-                        : item.status === "REJECTED"
-                        ? { color: "red" }
-                        : { color: "orange" },
-                    ]}
-                  >
+                  <Text style={[styles.statusBadge, item.status === "APPROVED" ? { color: "green" } : item.status === "REJECTED" ? { color: "red" } : { color: "orange" }]}>
                     {item.status}
                   </Text>
- 
                   {item.status === "SUBMITTED" && (
-                    <View
-                      style={{ flexDirection: "row", gap: 10, marginTop: 8 }}
-                    >
-                      <TouchableOpacity
-                        onPress={() => handleReview(item, "APPROVED")}
-                      >
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={28}
-                          color="green"
-                        />
+                    <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+                      <TouchableOpacity onPress={() => handleReview(item, "APPROVED")}>
+                        <Ionicons name="checkmark-circle" size={28} color="green" />
                       </TouchableOpacity>
- 
-                      <TouchableOpacity
-                        onPress={() => handleReview(item, "REJECTED")}
-                      >
+                      <TouchableOpacity onPress={() => handleReview(item, "REJECTED")}>
                         <Ionicons name="close-circle" size={28} color="red" />
                       </TouchableOpacity>
                     </View>
@@ -497,160 +397,48 @@ export default function TeacherAssignmentsView() {
   );
 }
  
-// ========================= STYLES =========================
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#F3F4F6" },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
- 
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
- 
-  pageTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#111827",
-    flex: 1,
-  },
- 
-  addButton: {
-    flexDirection: "row",
-    backgroundColor: "#F97316",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
- 
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  pageTitle: { fontSize: 24, fontWeight: "bold", color: "#111827", flex: 1 },
+  addButton: { flexDirection: "row", backgroundColor: "#F97316", paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, alignItems: "center" },
   addButtonText: { color: "#FFF", marginLeft: 4, fontWeight: "600" },
- 
-  card: {
-    backgroundColor: "#FFF",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    elevation: 2,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
+  card: { backgroundColor: "#FFF", padding: 16, borderRadius: 12, marginBottom: 12, elevation: 2 },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between" },
   title: { fontSize: 16, fontWeight: "bold" },
- 
-  fileButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 6,
-  },
-  fileButtonText: {
-    marginLeft: 6,
-    color: "#2563EB",
-    fontWeight: "600",
-  },
- 
-  status: {
-    padding: 4,
-    borderRadius: 4,
-    backgroundColor: "#FFF7ED",
-    color: "#F97316",
-    fontWeight: "bold",
-  },
- 
+  fileButton: { flexDirection: "row", alignItems: "center", marginVertical: 6 },
+  fileButtonText: { marginLeft: 6, color: "#2563EB", fontWeight: "600" },
+  status: { padding: 4, borderRadius: 4, backgroundColor: "#FFF7ED", color: "#F97316", fontWeight: "bold" },
   subtitle: { fontSize: 12, color: "#6B7280", marginBottom: 6 },
   desc: { fontSize: 14, color: "#374151" },
- 
   divider: { height: 1, backgroundColor: "#E5E7EB", marginVertical: 8 },
- 
-  viewSubBtn: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
+  viewSubBtn: { flexDirection: "row", justifyContent: "space-between" },
   viewSubText: { color: "#2563EB", fontWeight: "600" },
- 
-  // MODAL
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    padding: 20,
-  },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 20 },
   modalContent: { backgroundColor: "#FFF", padding: 20, borderRadius: 12 },
- 
   modalTitle: { fontSize: 20, fontWeight: "bold" },
   label: { marginTop: 10, fontWeight: "600" },
- 
-  input: {
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: "#F9FAFB",
-  },
- 
+  input: { borderWidth: 1, borderColor: "#D1D5DB", padding: 10, borderRadius: 8, backgroundColor: "#F9FAFB" },
   pillContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  pill: {
-    padding: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#999",
-  },
+  pill: { padding: 8, borderRadius: 20, borderWidth: 1, borderColor: "#999" },
   pillActive: { backgroundColor: "#F97316", borderColor: "#F97316" },
   pillText: { color: "#333" },
   pillTextActive: { color: "#FFF" },
- 
-  filePickBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#F97316",
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 6,
-  },
+  filePickBtn: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#F97316", padding: 10, borderRadius: 8, marginTop: 6 },
   filePickText: { marginLeft: 10, color: "#F97316" },
- 
-  modalFooter: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 20,
-  },
+  modalFooter: { flexDirection: "row", justifyContent: "flex-end", marginTop: 20 },
   cancelText: { marginRight: 20, color: "#555" },
-  saveBtn: {
-    backgroundColor: "#F97316",
-    padding: 10,
-    borderRadius: 8,
-  },
+  saveBtn: { backgroundColor: "#F97316", padding: 10, borderRadius: 8 },
   saveText: { color: "#FFF", fontWeight: "600" },
- 
-  // SUBMISSIONS
   fullScreenModal: { flex: 1, backgroundColor: "#F3F4F6" },
-  fsHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: "#FFF",
-  },
+  fsHeader: { flexDirection: "row", alignItems: "center", padding: 20, backgroundColor: "#FFF" },
   fsTitle: { fontSize: 20, marginLeft: 10 },
- 
-  subCard: {
-    backgroundColor: "#FFF",
-    padding: 16,
-    margin: 12,
-    borderRadius: 8,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
+  subCard: { backgroundColor: "#FFF", padding: 16, margin: 12, borderRadius: 8, flexDirection: "row", justifyContent: "space-between" },
   studentId: { fontWeight: "bold" },
   subNote: { color: "#555", maxWidth: 220 },
-  linkText: {
-    color: "#2563EB",
-    textDecorationLine: "underline",
-  },
+  linkText: { color: "#2563EB", textDecorationLine: "underline", marginTop: 4, fontSize: 14 },
   actionCol: { alignItems: "flex-end" },
   statusBadge: { fontWeight: "bold", marginBottom: 6 },
- 
   emptyText: { textAlign: "center", marginTop: 40, color: "#777" },
 });
