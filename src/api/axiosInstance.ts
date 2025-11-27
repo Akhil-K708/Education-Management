@@ -117,3 +117,4 @@ const createAxiosInstance = (baseURL: string): AxiosInstance => {
 
 export const authApi = createAxiosInstance(`${API_HOST}/api/auth`);
 export const studentApi = createAxiosInstance(`${API_HOST}/api/student`);
+export const notificationApi = createAxiosInstance(`${API_HOST}/api/notifications`);

@@ -1,15 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  Modal,
   Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
+import NotificationList from '../notifications/NotificationList';
 
 interface NavbarProps {
   onMenuPress: () => void;
@@ -20,9 +24,14 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
   const isMobile = width < 768;
   const { state } = useAuth();
   const user = state.user;
+  
+  const { unreadCount } = useNotification();
+  const [showNotifications, setShowNotifications] = useState(false);
 
   return (
-    <View style={styles.navbar}>
+    // 🔥 FIX 1: Styles merged conditionally properly
+    <View style={[styles.navbar, isMobile && styles.navbarMobile]}>
+      {/* --- LEFT SECTION --- */}
       <View style={styles.left}>
         <TouchableOpacity onPress={onMenuPress} style={styles.menuButton}>
           <Ionicons name="menu" size={28} color="#1F2937" />
@@ -42,6 +51,7 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
         )}
       </View>
 
+      {/* --- CENTER SECTION (Search) --- */}
       {!isMobile && (
         <View style={styles.center}>
           <Ionicons
@@ -58,9 +68,21 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
         </View>
       )}
 
+      {/* --- RIGHT SECTION --- */}
       <View style={styles.right}>
-        <TouchableOpacity style={styles.iconButton}>
+        {/* Notification Bell */}
+        <TouchableOpacity 
+            style={styles.iconButton} 
+            onPress={() => setShowNotifications(true)}
+        >
           <Ionicons name="notifications-outline" size={24} color="#374151" />
+          {unreadCount > 0 && (
+              <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+              </View>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.profileButton}>
@@ -69,97 +91,126 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
           </View>
         </TouchableOpacity>
       </View>
+
+      {/* 🔥 FIX 2: Modal Structure for Mobile Scrolling */}
+      <Modal 
+        visible={showNotifications} 
+        transparent={true} 
+        animationType="fade" 
+        onRequestClose={() => setShowNotifications(false)}
+      >
+         <TouchableOpacity 
+            style={styles.modalOverlay} 
+            activeOpacity={1} 
+            onPress={() => setShowNotifications(false)}
+         >
+             {/* Stop propagation so clicking inside doesn't close modal */}
+             <TouchableWithoutFeedback>
+                 <View style={[
+                     styles.notificationDropdown, 
+                     isMobile ? styles.dropdownMobile : styles.dropdownWeb
+                 ]}>
+                     {/* 🔥 List container with Flex to enable scrolling inside fixed height */}
+                     <View style={{flex: 1}}>
+                        <NotificationList onClose={() => setShowNotifications(false)} />
+                     </View>
+                 </View>
+             </TouchableWithoutFeedback>
+         </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   navbar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    paddingHorizontal: 16, 
+    paddingVertical: 12, 
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    minHeight: 60,
+    borderBottomWidth: 1, 
+    borderBottomColor: '#E5E7EB', 
+    zIndex: 20,
   },
-  left: {
-    flex: 1.5, 
-    flexDirection: 'row',
-    alignItems: 'center',
+  
+  // 🔥 FIX 3: REMOVED extra padding calculation. 
+  // SafeAreaView in _layout.tsx handles the status bar space.
+  navbarMobile: {
+    paddingTop: 12, // Minimal padding to look good
+    paddingBottom: 12,
+    // Flat design updates
+    elevation: 0, 
+    borderBottomWidth: 0, // Cleaner look for mobile
+    backgroundColor: 'transparent' // Let background color shine through if needed or keep white
   },
+  
+  left: { flex: 1.5, flexDirection: 'row', alignItems: 'center' },
+  
   center: {
-    flex: 3,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginHorizontal: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    flex: 3, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6',
+    borderRadius: 8, paddingHorizontal: 10, marginHorizontal: 20, borderWidth: 1, borderColor: '#E5E7EB'
   },
-  right: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  menuButton: {
-    marginRight: 12,
-  },
-  logoText: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
- 
-  userInfo: {
-    marginLeft: 10,
-    paddingLeft: 10,
-    borderLeftWidth: 1,
-    borderLeftColor: '#E5E7EB',
-    flexShrink: 1, 
-  },
-  usernameText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  roleText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
+  
+  right: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  
+  menuButton: { marginRight: 12 },
+  logoText: { fontSize: 22, fontWeight: 'bold', color: '#111827' },
+  
+  userInfo: { marginLeft: 10, paddingLeft: 10, borderLeftWidth: 1, borderLeftColor: '#E5E7EB' },
+  usernameText: { fontSize: 14, fontWeight: 'bold', color: '#111827' },
+  roleText: { fontSize: 12, color: '#6B7280' },
+  
+  searchIcon: { marginRight: 8 },
   searchBar: {
-    flex: 1,
-    height: 40,
-    fontSize: 16,
-    color: '#111827',
-    ...Platform.select({
-      web: {
-        outlineStyle: 'none',
-        borderWidth: 0,
-      } as any,
-    }),
+    flex: 1, height: 40, fontSize: 16, color: '#111827',
+    ...Platform.select({ web: { outlineStyle: 'none', borderWidth: 0 } as any }),
   },
-  iconButton: {
-    padding: 8,
+  
+  iconButton: { padding: 8, position: 'relative' },
+  profileButton: { marginLeft: 12 },
+  profilePic: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#4B5563', justifyContent: 'center', alignItems: 'center' },
+  
+  badge: {
+      position: 'absolute', top: 4, right: 4, backgroundColor: '#EF4444',
+      borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center',
+      borderWidth: 1.5, borderColor: '#FFF'
   },
-  profileButton: {
-    marginLeft: 12,
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold', paddingHorizontal: 2 },
+
+  // 🔥 FIX 4: Modal Styling
+  modalOverlay: { 
+      flex: 1, 
+      backgroundColor: 'rgba(0,0,0,0.3)', 
+      justifyContent: 'flex-start',
+      alignItems: 'center', // Centers horizontally for mobile
   },
-  profilePic: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#4B5563',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
+  
+  notificationDropdown: {
+      backgroundColor: '#FFF',
+      borderRadius: 12, 
+      elevation: 10, 
+      shadowColor: '#000', 
+      shadowOpacity: 0.2, 
+      shadowRadius: 10,
+      overflow: 'hidden',
+      zIndex: 1000,
   },
+
+  dropdownWeb: { 
+      position: 'absolute',
+      top: 60,
+      right: 20,
+      width: 380, 
+      maxHeight: 500,
+  },
+
+  // 🔥 FIX 5: Mobile Specific Dropdown Positioning
+  dropdownMobile: { 
+      marginTop: 60, // Pushes it just below the Navbar (since we removed extra padding)
+      width: '92%', 
+      height: 400, // Fixed height ensures scroll view has space
+      maxHeight: '70%', 
+  }
 });
