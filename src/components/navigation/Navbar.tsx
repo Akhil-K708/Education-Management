@@ -29,7 +29,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
   const [showNotifications, setShowNotifications] = useState(false);
 
   return (
-    // 🔥 FIX 1: Styles merged conditionally properly
     <View style={[styles.navbar, isMobile && styles.navbarMobile]}>
       {/* --- LEFT SECTION --- */}
       <View style={styles.left}>
@@ -70,7 +69,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
 
       {/* --- RIGHT SECTION --- */}
       <View style={styles.right}>
-        {/* Notification Bell */}
         <TouchableOpacity 
             style={styles.iconButton} 
             onPress={() => setShowNotifications(true)}
@@ -92,7 +90,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
         </TouchableOpacity>
       </View>
 
-      {/* 🔥 FIX 2: Modal Structure for Mobile Scrolling */}
       <Modal 
         visible={showNotifications} 
         transparent={true} 
@@ -104,13 +101,11 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
             activeOpacity={1} 
             onPress={() => setShowNotifications(false)}
          >
-             {/* Stop propagation so clicking inside doesn't close modal */}
              <TouchableWithoutFeedback>
                  <View style={[
                      styles.notificationDropdown, 
                      isMobile ? styles.dropdownMobile : styles.dropdownWeb
                  ]}>
-                     {/* 🔥 List container with Flex to enable scrolling inside fixed height */}
                      <View style={{flex: 1}}>
                         <NotificationList onClose={() => setShowNotifications(false)} />
                      </View>
@@ -135,15 +130,12 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   
-  // 🔥 FIX 3: REMOVED extra padding calculation. 
-  // SafeAreaView in _layout.tsx handles the status bar space.
   navbarMobile: {
-    paddingTop: 12, // Minimal padding to look good
+    paddingTop: 12, 
     paddingBottom: 12,
-    // Flat design updates
     elevation: 0, 
-    borderBottomWidth: 0, // Cleaner look for mobile
-    backgroundColor: 'transparent' // Let background color shine through if needed or keep white
+    borderBottomWidth: 0, 
+    backgroundColor: 'transparent' 
   },
   
   left: { flex: 1.5, flexDirection: 'row', alignItems: 'center' },
@@ -179,12 +171,11 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold', paddingHorizontal: 2 },
 
-  // 🔥 FIX 4: Modal Styling
   modalOverlay: { 
       flex: 1, 
       backgroundColor: 'rgba(0,0,0,0.3)', 
       justifyContent: 'flex-start',
-      alignItems: 'center', // Centers horizontally for mobile
+      alignItems: 'center', 
   },
   
   notificationDropdown: {
@@ -206,11 +197,10 @@ const styles = StyleSheet.create({
       maxHeight: 500,
   },
 
-  // 🔥 FIX 5: Mobile Specific Dropdown Positioning
   dropdownMobile: { 
-      marginTop: 60, // Pushes it just below the Navbar (since we removed extra padding)
+      marginTop: 60, 
       width: '92%', 
-      height: 400, // Fixed height ensures scroll view has space
+      height: 400, 
       maxHeight: '70%', 
   }
 });

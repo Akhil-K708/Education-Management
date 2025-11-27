@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 
 interface NotificationContextType {
   unreadCount: number;
-  lastUpdated: number; // 🔥 NEW: Trigger for refreshing list
+  lastUpdated: number; 
   refreshCount: () => void;
 }
 
@@ -15,7 +15,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   const { state } = useAuth();
   const user = state.user;
   const [unreadCount, setUnreadCount] = useState(0);
-  const [lastUpdated, setLastUpdated] = useState(Date.now()); // 🔥 Store timestamp
+  const [lastUpdated, setLastUpdated] = useState(Date.now()); 
 
   const refreshCount = async () => {
     if (user?.username) {
@@ -41,12 +41,12 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     (es as any).addEventListener("notification", (event: any) => {
       console.log("🔔 New Notification Received!");
       setUnreadCount(prev => prev + 1);
-      setLastUpdated(Date.now()); // 🔥 Trigger list refresh
+      setLastUpdated(Date.now()); 
     });
 
     es.addEventListener("error", (event: any) => {
       if (event?.type === 'error') {
-          // console.log("🔴 SSE Connection Issue"); // Optional log
+          // console.log("🔴 SSE Connection Issue"); 
       }
     });
 
