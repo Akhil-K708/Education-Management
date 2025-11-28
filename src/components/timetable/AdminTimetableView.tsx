@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     FlatList,
     Modal,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
@@ -22,6 +23,29 @@ import {
 } from '../../api/timetableApi';
 
 const DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+
+// --- WEB TIME INPUT HELPER ---
+const WebTimeInput = ({ value, onChange }: { value: string, onChange: (time: string) => void }) => {
+    return React.createElement('input', {
+       type: 'time',
+       value: value,
+       style: {
+           borderWidth: 1, 
+           borderColor: '#E5E7EB', 
+           borderRadius: 8, 
+           padding: 10,
+           backgroundColor: '#F9FAFB', 
+           width: '100%', 
+           height: 45,
+           fontSize: 14,
+           fontFamily: 'System', 
+           boxSizing: 'border-box',
+           outline: 'none',
+           flex: 1
+       },
+       onChange: (e: any) => onChange(e.target.value)
+    });
+ };
 
 export default function AdminTimetableView() {
   const [loading, setLoading] = useState(false);
@@ -43,6 +67,10 @@ export default function AdminTimetableView() {
       teacherId: ''
   });
 
+  // Time Picker States
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+
   useEffect(() => {
     loadDropdowns();
   }, []);
@@ -63,6 +91,7 @@ export default function AdminTimetableView() {
       setIsExisting(false);
 
       try {
+          // 🔥 FIX: getStudentIdByClass now handles 403 internally and returns null
           const studentId = await getStudentIdByClass(classId);
           
           if (studentId) {
@@ -85,30 +114,44 @@ export default function AdminTimetableView() {
                   setTimetablePeriods(flatList);
                   setIsExisting(true);
               }
+          } else {
+              // 🔥 If no student found (e.g., 403), treat as new timetable
+              console.log("No student or timetable found for class - Creating new");
+              setIsExisting(false);
           }
       } catch (e) {
-          console.log("No existing timetable or error fetching");
+          // Fallback catch
+          console.log("Error loading timetable, starting fresh");
+          setIsExisting(false);
       } finally {
           setLoading(false);
       }
   };
 
-  // Helper to convert "09:00 AM" -> "09:00" for editing/saving
   const convertTime12to24 = (time12h: string) => {
       if(!time12h) return "09:00";
-      // Simple logic assuming backend returns AM/PM correctly or just keep as is if format matches
-      // For this mock/integration, let's assume we strip AM/PM if present or keep.
-      // Real app needs moment.js or proper parsing.
       return time12h.replace(' AM', '').replace(' PM', '');
   };
 
+  // Helper: Convert "HH:mm" string to Date object
+  const parseTimeStr = (timeStr: string) => {
+      const [h, m] = timeStr.split(':');
+      const d = new Date();
+      d.setHours(parseInt(h || '0'), parseInt(m || '0'), 0);
+      return d;
+  };
+
+  // Helper: Convert Date object to "HH:mm" string
+  const formatTimeStr = (date: Date) => {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
   const handleAddPeriod = () => {
-      if(!newPeriod.subjectId || !newPeriod.teacherId || !newPeriod.startTime) {
+      if(!newPeriod.subjectId || !newPeriod.teacherId || !newPeriod.startTime || !newPeriod.endTime) {
           Alert.alert("Error", "Please fill all fields");
           return;
       }
       
-      // Get Names for Display
       const sub = subjects.find(s => s.subjectId === newPeriod.subjectId);
       const tch = teachers.find(t => t.teacherId === newPeriod.teacherId);
 
@@ -127,7 +170,6 @@ export default function AdminTimetableView() {
       if (!selectedClass) return;
       setLoading(true);
       try {
-          // Prepare payload: Remove display names if backend doesn't want them
           const payload = timetablePeriods.map(p => ({
               day: p.day,
               subjectId: p.subjectId,
@@ -146,14 +188,12 @@ export default function AdminTimetableView() {
       }
   };
 
-  // Filter periods for current active tab
   const currentPeriods = timetablePeriods.filter(p => p.day === activeDay).sort((a,b) => a.startTime.localeCompare(b.startTime));
 
   return (
     <View style={styles.container}>
         <Text style={styles.title}>Manage Timetable</Text>
 
-        {/* Class Selector */}
         <View style={styles.selectorContainer}>
             <Text style={styles.label}>Select Class:</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -173,7 +213,6 @@ export default function AdminTimetableView() {
 
         {selectedClass ? (
             <>
-                {/* Day Tabs */}
                 <View style={styles.tabsContainer}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         {DAYS.map(day => (
@@ -190,7 +229,6 @@ export default function AdminTimetableView() {
                     </ScrollView>
                 </View>
 
-                {/* Periods List */}
                 {loading ? (
                     <ActivityIndicator size="large" color="#F97316" style={{marginTop: 20}} />
                 ) : (
@@ -199,7 +237,7 @@ export default function AdminTimetableView() {
                         keyExtractor={(item, index) => index.toString()}
                         contentContainerStyle={{ paddingBottom: 80 }}
                         ListEmptyComponent={
-                            <Text style={styles.emptyText}>No classes on {activeDay}</Text>
+                            <Text style={styles.emptyText}>No classes on {activeDay}. Add one below.</Text>
                         }
                         renderItem={({ item }) => (
                             <View style={styles.card}>
@@ -213,7 +251,6 @@ export default function AdminTimetableView() {
                                     <Text style={styles.teacher}>{item.teacherName}</Text>
                                 </View>
                                 <TouchableOpacity onPress={() => {
-                                    // Simple delete from local state
                                     const updated = timetablePeriods.filter(p => p !== item);
                                     setTimetablePeriods(updated);
                                 }}>
@@ -224,7 +261,6 @@ export default function AdminTimetableView() {
                     />
                 )}
 
-                {/* Actions */}
                 <View style={styles.footer}>
                     <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
                         <Ionicons name="add" size={20} color="#FFF" />
@@ -251,20 +287,56 @@ export default function AdminTimetableView() {
                     
                     <Text style={styles.inputLabel}>Time (HH:mm)</Text>
                     <View style={styles.row}>
-                        <TextInput 
-                            style={styles.inputHalf} 
-                            value={newPeriod.startTime}
-                            onChangeText={t => setNewPeriod({...newPeriod, startTime: t})}
-                            placeholder="09:00" 
-                        />
+                        {Platform.OS === 'web' ? (
+                            <WebTimeInput 
+                                value={newPeriod.startTime} 
+                                onChange={(t) => setNewPeriod({...newPeriod, startTime: t})} 
+                            />
+                        ) : (
+                            <TouchableOpacity style={styles.timeBtn} onPress={() => setShowStartPicker(true)}>
+                                <Text>{newPeriod.startTime}</Text>
+                                <Ionicons name="time-outline" size={18} color="gray" />
+                            </TouchableOpacity>
+                        )}
+
                         <Text>-</Text>
-                        <TextInput 
-                            style={styles.inputHalf} 
-                            value={newPeriod.endTime} 
-                            onChangeText={t => setNewPeriod({...newPeriod, endTime: t})}
-                            placeholder="10:00" 
-                        />
+
+                        {Platform.OS === 'web' ? (
+                            <WebTimeInput 
+                                value={newPeriod.endTime} 
+                                onChange={(t) => setNewPeriod({...newPeriod, endTime: t})} 
+                            />
+                        ) : (
+                            <TouchableOpacity style={styles.timeBtn} onPress={() => setShowEndPicker(true)}>
+                                <Text>{newPeriod.endTime}</Text>
+                                <Ionicons name="time-outline" size={18} color="gray" />
+                            </TouchableOpacity>
+                        )}
                     </View>
+
+                    {/* Native Time Pickers */}
+                    {showStartPicker && (
+                        <DateTimePicker
+                            value={parseTimeStr(newPeriod.startTime)}
+                            mode="time"
+                            display="default"
+                            onChange={(e: DateTimePickerEvent, d?: Date) => {
+                                setShowStartPicker(false);
+                                if (d) setNewPeriod({...newPeriod, startTime: formatTimeStr(d)});
+                            }}
+                        />
+                    )}
+                    {showEndPicker && (
+                        <DateTimePicker
+                            value={parseTimeStr(newPeriod.endTime)}
+                            mode="time"
+                            display="default"
+                            onChange={(e: DateTimePickerEvent, d?: Date) => {
+                                setShowEndPicker(false);
+                                if (d) setNewPeriod({...newPeriod, endTime: formatTimeStr(d)});
+                            }}
+                        />
+                    )}
 
                     <Text style={styles.inputLabel}>Subject</Text>
                     <ScrollView style={styles.dropdown} nestedScrollEnabled>
@@ -347,7 +419,9 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
   inputLabel: { fontSize: 12, fontWeight: '600', color: '#6B7280', marginTop: 10, marginBottom: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  inputHalf: { flex: 1, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, backgroundColor: '#F9FAFB' },
+  
+  timeBtn: { flex: 1, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, backgroundColor: '#F9FAFB', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+
   dropdown: { maxHeight: 120, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8 },
   ddItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   ddItemActive: { backgroundColor: '#FFF7ED' },

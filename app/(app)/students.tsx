@@ -36,15 +36,16 @@ import { useAuth } from '../../src/context/AuthContext';
 const API_BASE_URL = 'http://192.168.0.113:8080'; // Backend URL for Images
 
 // --- HELPER COMPONENTS ---
-const InputField = ({ label, value, onChange, placeholder, keyboardType = 'default' }: any) => (
+const InputField = ({ label, value, onChange, placeholder, keyboardType = 'default', editable = true }: any) => (
   <View style={styles.inputGroup}>
     <Text style={styles.label}>{label}</Text>
     <TextInput
-      style={styles.input}
+      style={[styles.input, !editable && { backgroundColor: '#E5E7EB', color: '#6B7280' }]}
       value={value}
       onChangeText={onChange}
       placeholder={placeholder}
       keyboardType={keyboardType}
+      editable={editable}
     />
   </View>
 );
@@ -78,7 +79,7 @@ export default function StudentsScreen() {
   const [allStudents, setAllStudents] = useState<StudentDTO[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<StudentDTO[]>([]);
   const [pendingAdmissions, setPendingAdmissions] = useState<AdmissionDTO[]>([]);
-  const [deletedStudents, setDeletedStudents] = useState<StudentDTO[]>([]); // Local state for deleted items
+  const [deletedStudents, setDeletedStudents] = useState<StudentDTO[]>([]); 
   const [classList, setClassList] = useState<ClassSectionDTO[]>([]);
 
   // UI States
@@ -100,7 +101,7 @@ export default function StudentsScreen() {
 
   // Full DTO State
   const [admissionForm, setAdmissionForm] = useState({
-    admissionNumber: '',
+    admissionNumber: '', // Will be shown in Edit
     admissionDate: new Date().toISOString().split('T')[0],
     applicantName: '',
     dateOfBirth: '',
@@ -110,7 +111,7 @@ export default function StudentsScreen() {
     religion: '',
     category: '',
     aadhaarNumber: '',
-    totalFee: '', // ✅ Added Total Fee Field
+    totalFee: '',
     gradeApplied: '',
     academicYear: '2025-2026',
     previousSchool: '',
@@ -135,7 +136,9 @@ export default function StudentsScreen() {
     transferCertificateUrl: '',
     aadhaarCardUrl: '',
     photoUrl: '',
-    aadhaarCardNumber: ''
+    aadhaarCardNumber: '',
+    // 🔥 ADDED EMAIL FIELD
+    email: '' 
   });
 
   const fetchData = async () => {
@@ -147,11 +150,9 @@ export default function StudentsScreen() {
         getAllClassSections()
       ]);
       
-      // Sort Students by ID (Ascending: 001, 002...)
       const sortedStudents = students.sort((a, b) => a.studentId.localeCompare(b.studentId));
       setAllStudents(sortedStudents);
       
-      // Initial Filter (Defaults to ALL)
       if (selectedClassId === 'ALL') {
           setFilteredStudents(sortedStudents);
       } else {
@@ -159,7 +160,6 @@ export default function StudentsScreen() {
           setFilteredStudents(filtered);
       }
       
-      // Sort Admissions: Latest First (Date Descending)
       const sortedAdmissions = admissions.sort((a, b) => {
           const dateA = new Date(a.admissionDate).getTime();
           const dateB = new Date(b.admissionDate).getTime();
@@ -192,7 +192,6 @@ export default function StudentsScreen() {
     } else {
       filtered = allStudents.filter(s => s.classSectionId === selectedClassId);
     }
-    // Ensure filtering maintains ID Sort Order
     filtered.sort((a, b) => a.studentId.localeCompare(b.studentId));
     setFilteredStudents(filtered);
   }, [selectedClassId, allStudents]);
@@ -229,7 +228,7 @@ export default function StudentsScreen() {
                 religion: admissionForm.religion,
                 category: admissionForm.category,
                 aadhaarNumber: admissionForm.aadhaarNumber,
-                totalFee: admissionForm.totalFee ? parseFloat(admissionForm.totalFee) : null, // ✅ Update Fee
+                totalFee: admissionForm.totalFee ? parseFloat(admissionForm.totalFee) : null,
                 fatherName: admissionForm.fatherName,
                 fatherContact: admissionForm.fatherContact,
                 motherName: admissionForm.motherName,
@@ -241,7 +240,8 @@ export default function StudentsScreen() {
                 state: admissionForm.state,
                 pincode: admissionForm.pincode,
                 contactNumber: admissionForm.fatherContact,
-                email: '', 
+                // 🔥 Pass updated Email
+                email: admissionForm.email, 
                 emergencyContactName: admissionForm.emergencyContactName,
                 emergencyContactNumber: admissionForm.emergencyContactNumber,
                 active: true
@@ -253,7 +253,9 @@ export default function StudentsScreen() {
             // --- CREATE MODE ---
             const payload = {
                 ...admissionForm,
-                totalFee: admissionForm.totalFee ? parseFloat(admissionForm.totalFee) : null // ✅ Create Fee
+                totalFee: admissionForm.totalFee ? parseFloat(admissionForm.totalFee) : null,
+                // 🔥 Pass Email in creation payload too
+                email: admissionForm.email 
             };
             await submitAdmission(payload, selectedImage || undefined);
             Alert.alert("Success", "Admission Submitted! Pending for Approval.");
@@ -276,6 +278,8 @@ export default function StudentsScreen() {
       
       setAdmissionForm({
           ...admissionForm,
+          // 🔥 SET ADMISSION NUMBER FOR DISPLAY
+          admissionNumber: student.admissionNumber || '', 
           applicantName: student.fullName || '',
           dateOfBirth: student.dateOfBirth || new Date().toISOString().split('T')[0],
           gender: student.gender || 'Male',
@@ -284,7 +288,6 @@ export default function StudentsScreen() {
           religion: student.religion || '',
           category: student.category || '',
           aadhaarNumber: student.aadhaarNumber || '',
-          // ✅ Load existing Fee (Safely accessing dynamic property)
           totalFee: (student as any).totalFee ? (student as any).totalFee.toString() : '', 
           gradeApplied: student.grade || '',
           academicYear: student.academicYear || '2025-2026',
@@ -310,7 +313,9 @@ export default function StudentsScreen() {
           transferCertificateUrl: '',
           aadhaarCardUrl: '',
           photoUrl: student.profileImageUrl || '',
-          aadhaarCardNumber: student.aadhaarNumber || ''
+          aadhaarCardNumber: student.aadhaarNumber || '',
+          // 🔥 SET EMAIL
+          email: student.email || ''
       });
       
       setDobDate(student.dateOfBirth ? new Date(student.dateOfBirth) : new Date());
@@ -384,7 +389,7 @@ export default function StudentsScreen() {
         religion: '',
         category: '',
         aadhaarNumber: '',
-        totalFee: '', // ✅ Reset Fee
+        totalFee: '', 
         gradeApplied: '',
         academicYear: '2025-2026',
         previousSchool: '',
@@ -409,7 +414,9 @@ export default function StudentsScreen() {
         transferCertificateUrl: '',
         aadhaarCardUrl: '',
         photoUrl: '',
-        aadhaarCardNumber: ''
+        aadhaarCardNumber: '',
+        // 🔥 Reset Email
+        email: ''
     }); 
     setDobDate(new Date());
     setSelectedImage(null);
@@ -430,8 +437,6 @@ export default function StudentsScreen() {
     return `${API_BASE_URL}/${cleanPath}`;
   };
 
-  // --- RENDERERS ---
-
   const renderStudentItem = ({ item }: { item: StudentDTO }) => {
     const imageUrl = getFullImageUrl(item.profileImageUrl || '');
     
@@ -441,9 +446,7 @@ export default function StudentsScreen() {
             isWeb && { width: `${100 / numColumns}%`, paddingHorizontal: 10, marginBottom: 20 }
         ]}>
             <View style={styles.modernCard}>
-                {/* Top Row: Content + Icons */}
                 <View style={styles.cardTop}>
-                    {/* Avatar & Info */}
                     <View style={styles.cardContentRow}>
                         <View style={styles.avatarWrapper}>
                             {imageUrl ? (
@@ -470,7 +473,6 @@ export default function StudentsScreen() {
                         </View>
                     </View>
 
-                    {/* Edit/Delete Icons (Top Right) */}
                     <View style={styles.topActionIcons}>
                         <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconBtn}>
                             <Ionicons name="create-outline" size={20} color="#2563EB" />
@@ -483,7 +485,6 @@ export default function StudentsScreen() {
 
                 <View style={styles.cardDivider} />
 
-                {/* Footer: Father & Contact (Left & Right) */}
                 <View style={styles.cardFooter}>
                     <View style={styles.footerItem}>
                         <Ionicons name="people-outline" size={14} color="#6B7280" />
@@ -541,7 +542,6 @@ export default function StudentsScreen() {
             isWeb && { width: `${100 / numColumns}%`, paddingHorizontal: 10, marginBottom: 20 }
         ]}>
             <View style={styles.modernCard}>
-                {/* Pending Status Banner */}
                 <View style={styles.pendingBanner}>
                     <Text style={styles.pendingText}>Pending Approval</Text>
                     <Text style={styles.dateText}>{item.admissionDate}</Text>
@@ -567,7 +567,6 @@ export default function StudentsScreen() {
 
                 <View style={styles.cardDivider} />
 
-                {/* Action Buttons */}
                 <View style={styles.actionButtonsRow}>
                     <TouchableOpacity style={styles.rejectButton} onPress={() => handleReject(item)}>
                         <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
@@ -584,7 +583,6 @@ export default function StudentsScreen() {
     );
   };
 
-  // --- MODALS RENDER ---
   const renderSelectionModal = () => {
     if(!activeDropdown) return null;
     let data: string[] = [];
@@ -615,7 +613,6 @@ export default function StudentsScreen() {
   return (
     <View style={styles.container}>
       
-      {/* TITLE ROW */}
       <View style={[styles.headerRow, !isWeb && styles.headerRowMobile]}>
         <Text style={styles.title}>
             {activeTab === 'STUDENTS' ? 'Students Directory' : activeTab === 'ADMISSIONS' ? 'Admission Requests' : 'Deleted Students'}
@@ -637,7 +634,6 @@ export default function StudentsScreen() {
         </View>
       </View>
 
-      {/* TABS */}
       <View style={styles.tabContainer}>
           <TouchableOpacity 
             style={[styles.tab, activeTab === 'STUDENTS' && styles.activeTab]} 
@@ -656,7 +652,6 @@ export default function StudentsScreen() {
           </TouchableOpacity>
       </View>
 
-      {/* FILTERS (Only for Students Tab) */}
       {activeTab === 'STUDENTS' && (
         <View style={styles.filterContainer}>
             <Text style={styles.filterLabel}>Filter by Class:</Text>
@@ -667,7 +662,6 @@ export default function StudentsScreen() {
         </View>
       )}
 
-      {/* CONTENT LIST */}
       {loading ? (
         <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>
       ) : (
@@ -704,7 +698,6 @@ export default function StudentsScreen() {
         )
       )}
 
-      {/* --- CLASS MODAL --- */}
       <Modal visible={showClassModal} transparent animationType="fade">
         <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowClassModal(false)}>
           <View style={[styles.modalContent, {maxHeight: 400}]}>
@@ -722,7 +715,6 @@ export default function StudentsScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* --- DROPDOWN MODAL --- */}
       {renderSelectionModal()}
 
       {/* --- NEW ADMISSION / EDIT FORM --- */}
@@ -737,7 +729,6 @@ export default function StudentsScreen() {
           <ScrollView contentContainerStyle={styles.formContainer}>
             <Text style={styles.sectionHeader}>Student Information</Text>
             
-            {/* Photo */}
             <View style={styles.photoSection}>
                 <TouchableOpacity style={styles.photoUploadBtn} onPress={pickImage}>
                     {selectedImage ? (
@@ -750,9 +741,17 @@ export default function StudentsScreen() {
                     )}
                 </TouchableOpacity>
             </View>
+            
+            {/* 🔥 Show Admission Number only in Edit Mode (Read Only) */}
+            {isEditMode && (
+                <InputField label="Admission Number" value={admissionForm.admissionNumber} onChange={() => {}} placeholder="N/A" editable={false} />
+            )}
 
             <InputField label="Applicant Name" value={admissionForm.applicantName} onChange={(t:string) => setAdmissionForm({...admissionForm, applicantName: t})} placeholder="Full Name" />
             
+            {/* 🔥 Added Email Field */}
+            <InputField label="Email Address" value={admissionForm.email} onChange={(t:string) => setAdmissionForm({...admissionForm, email: t})} placeholder="student@example.com" keyboardType="email-address" />
+
             <View style={styles.formRow}>
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>Date of Birth</Text>
@@ -806,7 +805,6 @@ export default function StudentsScreen() {
                 <InputField label="Academic Year" value={admissionForm.academicYear} onChange={(t:string) => setAdmissionForm({...admissionForm, academicYear: t})} placeholder="2025-2026" />
             </View>
             
-            {/* ✅ TOTAL FEE FIELD ADDED */}
             <View style={styles.formRow}>
                 <InputField 
                     label="Total Fee" 

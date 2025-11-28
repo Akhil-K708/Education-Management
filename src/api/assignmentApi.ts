@@ -1,8 +1,6 @@
 import { Assignment, AssignmentSubmission } from "../types/assignment";
 import { studentApi } from "./axiosInstance";
  
-// ------------------ GET ASSIGNMENTS (NO FILE) ------------------
- 
 export const getStudentAssignments = async (
   classSectionId: string
 ): Promise<Assignment[]> => {
@@ -36,34 +34,22 @@ export const submitStudentAssignment = async (
   subjectId: string,
   formData: FormData
 ) => {
-  const response = await fetch(
-    `http://192.168.0.113:8080/api/student/assignment-submissions/${assignmentId}/${subjectId}`,
+  return studentApi.post(
+    `/assignment-submissions/${assignmentId}/${subjectId}`,
+    formData,
     {
-      method: "POST",
       headers: {
-        Accept: "application/json",
+        "Content-Type": "multipart/form-data",
       },
-      body: formData,
     }
   );
- 
-  if (!response.ok) {
-    const err = await response.text();
-    console.log("Upload error:", err);
-    throw new Error(err);
-  }
- 
-  return await response.text();
 };
- 
  
 export const getTeacherAssignments = async (
   teacherId: string
 ): Promise<Assignment[]> => {
   try {
-    const response = await studentApi.get(
-      `/assignments/teacher/${teacherId}`
-    );
+    const response = await studentApi.get(`/assignments/teacher/${teacherId}`);
     return response.data;
   } catch (error) {
     console.error("Error fetching teacher assignments:", error);
@@ -71,34 +57,22 @@ export const getTeacherAssignments = async (
   }
 };
  
-// ------------------ CREATE ASSIGNMENT (WITH FILE) ------------------
 export const createAssignment = async (
   teacherId: string,
   subjectId: string,
   classSectionId: string,
   formData: FormData
 ) => {
-  const response = await fetch(
-    `http://192.168.0.113:8080/api/student/assignment/${teacherId}/${subjectId}/${classSectionId}`,
+  return studentApi.post(
+    `/assignment/${teacherId}/${subjectId}/${classSectionId}`,
+    formData,
     {
-      method: "POST",
       headers: {
-        Accept: "application/json",
+        "Content-Type": "multipart/form-data",
       },
-      body: formData,
     }
   );
- 
-  if (!response.ok) {
-    const err = await response.text();
-    console.log("Upload error:", err);
-    throw new Error(err);
-  }
- 
-  return response.json();
 };
- 
-// ------------------ SUBMISSIONS ------------------
  
 export const getAssignmentSubmissions = async (
   assignmentId: string,

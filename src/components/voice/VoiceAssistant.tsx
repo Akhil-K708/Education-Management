@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Animated,
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useAuth } from '../../context/AuthContext';
@@ -17,10 +17,17 @@ const WS_URL = 'ws://192.168.0.245:8080/ws';
 
 const VOICE_OPTIONS = [
     { id: 'kathleen', name: 'Kathleen', gender: 'Female' },
-    { id: 'tessa', name: 'Tessa', gender: 'Female' },
-    { id: 'bob', name: 'Bob', gender: 'Male' },
+    { id: 'amy', name: 'Amy', gender: 'Female' },
+    { id: 'kusal', name: 'Kusal', gender: 'Male' },
     { id: 'ryan', name: 'Ryan', gender: 'Male' },
 ];
+
+const VOICE_SAMPLES: Record<string, any> = {
+    kathleen: require('../../../assets/kathleen.mp3'),
+    amy: require('../../../assets/amy.mp3'),
+    kusal: require('../../../assets/kusal.mp3'),
+    ryan: require('../../../assets/ryan.mp3'),
+};
 
 const LANGUAGES = [
     { id: 'en-US', label: 'English (US)' },
@@ -39,6 +46,12 @@ export default function VoiceAssistant() {
   const [statusText, setStatusText] = useState('Tap mic to start');
   const [selectedLang, setSelectedLang] = useState('en-US');
   const [selectedVoice, setSelectedVoice] = useState('kathleen');
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+
+  // --- Help Tooltip State ---
+  const [showHelp, setShowHelp] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current; 
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnims = useRef([1, 2, 3, 4, 5].map(() => new Animated.Value(10))).current;
@@ -71,7 +84,7 @@ export default function VoiceAssistant() {
 
   const stopWaveAnimation = () => { waveAnims.forEach(anim => anim.setValue(10)); };
 
-  // --- PERMISSIONS ---
+  // --- PERMISSIONS & HELP POPUP ---
   useEffect(() => {
     (async () => {
       if (Platform.OS !== 'web') {
@@ -81,12 +94,77 @@ export default function VoiceAssistant() {
         }
       }
     })();
+
+    // Show Help Popup Logic
+    const showTimer = setTimeout(() => {
+        setShowHelp(true);
+        Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+        setTimeout(() => {
+            Animated.timing(fadeAnim, { toValue: 0, duration: 500, useNativeDriver: true }).start(() => setShowHelp(false));
+        }, 4000);
+    }, 1500);
+
+    return () => clearTimeout(showTimer);
   }, []);
+
+  // --- AUDIO CLEANUP ---
+  useEffect(() => {
+    return () => {
+        if (sound) {
+            sound.unloadAsync();
+        }
+    };
+  }, [sound]);
+
+  // --- HANDLE PLAY SAMPLE ---
+  const handlePlaySample = async (voiceId: string) => {
+      try {
+          // If already playing this voice, stop it
+          if (playingVoiceId === voiceId && sound) {
+              await sound.stopAsync();
+              await sound.unloadAsync();
+              setSound(null);
+              setPlayingVoiceId(null);
+              return;
+          }
+
+          // Stop previous sound if any
+          if (sound) {
+              await sound.stopAsync();
+              await sound.unloadAsync();
+          }
+
+          // Load and play new sound
+          const source = VOICE_SAMPLES[voiceId];
+          if (!source) {
+              console.warn("Audio file not found for", voiceId);
+              return;
+          }
+
+          const { sound: newSound } = await Audio.Sound.createAsync(source);
+          setSound(newSound);
+          setPlayingVoiceId(voiceId);
+
+          newSound.setOnPlaybackStatusUpdate((status) => {
+              if (status.isLoaded && status.didJustFinish) {
+                  setPlayingVoiceId(null);
+                  newSound.unloadAsync();
+                  setSound(null);
+              }
+          });
+
+          await newSound.playAsync();
+
+      } catch (error) {
+          console.error("Failed to play sample:", error);
+      }
+  };
 
   // --- ACTIONS SENT TO WEBVIEW ---
   const handleConnect = () => {
     setConnectionStatus('CONNECTING');
     setStatusText("Connecting...");
+    setShowHelp(false);
     
     const initData = {
         type: 'INIT_CONFIG',
@@ -106,6 +184,7 @@ export default function VoiceAssistant() {
     setIsListening(false);
     stopPulseAnimation();
     stopWaveAnimation();
+    if (sound) { sound.stopAsync(); setPlayingVoiceId(null); }
   };
 
   const handleToggleMic = () => {
@@ -115,13 +194,11 @@ export default function VoiceAssistant() {
     }
 
     if (isListening) {
-        // Stop
         webViewRef.current?.postMessage(JSON.stringify({ type: 'STOP_MIC' }));
         setIsListening(false);
         stopPulseAnimation();
         setStatusText("Processing...");
     } else {
-        // Start
         webViewRef.current?.postMessage(JSON.stringify({ type: 'START_MIC' }));
         setIsListening(true);
         startPulseAnimation();
@@ -169,7 +246,7 @@ export default function VoiceAssistant() {
       }
   };
 
-  // --- INJECTED JAVASCRIPT (The Core Logic) ---
+  // --- INJECTED JAVASCRIPT ---  Main logic
   const injectedJavaScript = `
     (function() {
         let conn = null;
@@ -212,14 +289,10 @@ export default function VoiceAssistant() {
         function connectWS(config) {
             try {
                 if (conn) conn.close();
-                
-                // Construct URL
                 const url = config.wsUrl + '?name=' + encodeURIComponent(config.username);
                 sendToRN('LOG', 'Connecting to ' + url);
-                
                 conn = new WebSocket(url);
                 conn.binaryType = 'arraybuffer';
-
                 conn.onopen = () => {
                     sendToRN('WS_CONNECTED');
                     conn.send(JSON.stringify({
@@ -232,13 +305,8 @@ export default function VoiceAssistant() {
                         options: {}
                     }));
                 };
-
                 conn.onclose = (e) => sendToRN('WS_DISCONNECTED', 'Code: ' + e.code);
-                
-                conn.onerror = (e) => {
-                    sendToRN('ERROR', 'WS Error');
-                };
-
+                conn.onerror = (e) => { sendToRN('ERROR', 'WS Error'); };
                 conn.onmessage = handleIncomingAudio;
             } catch (err) {
                 sendToRN('ERROR', 'WS Exception: ' + err.message);
@@ -248,45 +316,34 @@ export default function VoiceAssistant() {
         function handleIncomingAudio(evt) {
             try {
                 if (evt.data instanceof ArrayBuffer) return;
-
                 const msg = JSON.parse(evt.data);
                 if (msg.audio_bytes) {
                     if (!audioCtxPlay) audioCtxPlay = new (window.AudioContext || window.webkitAudioContext)();
                     if (audioCtxPlay.state === 'suspended') audioCtxPlay.resume();
-                    
                     const binaryString = atob(msg.audio_bytes);
                     const len = binaryString.length;
                     const bytes = new Uint8Array(len);
                     for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-                    
                     const int16 = new Int16Array(bytes.buffer);
                     const float32 = new Float32Array(int16.length);
                     for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
-
                     audioQueue.push({ buffer: float32, sampleRate: msg.sample_rate || 16000 });
                     processAudioQueue();
                 }
-            } catch(e) {
-                sendToRN('LOG', 'Msg Parse Error: ' + e.message);
-            }
+            } catch(e) { sendToRN('LOG', 'Msg Parse Error: ' + e.message); }
         }
 
         function processAudioQueue() {
             if (isPlaying || audioQueue.length === 0) return;
-            
             isPlaying = true;
             sendToRN('PLAYBACK_START');
-            
             const item = audioQueue.shift();
             if (audioCtxPlay.state === 'suspended') audioCtxPlay.resume();
-
             const audioBuffer = audioCtxPlay.createBuffer(1, item.buffer.length, item.sampleRate);
             audioBuffer.copyToChannel(item.buffer, 0);
-
             const source = audioCtxPlay.createBufferSource();
             source.buffer = audioBuffer;
             source.connect(audioCtxPlay.destination);
-            
             source.onended = () => {
                 isPlaying = false;
                 if (audioQueue.length === 0) sendToRN('PLAYBACK_END');
@@ -297,69 +354,39 @@ export default function VoiceAssistant() {
 
         async function startMic() {
             try {
-                // Request Mic Access
                 micStream = await navigator.mediaDevices.getUserMedia({ audio: {
-                    sampleRate: 16000,
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
+                    sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true
                 }});
-
                 audioCtxMic = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
                 if (audioCtxMic.state === 'suspended') await audioCtxMic.resume();
-                
                 const blob = new Blob([processorCode], {type: 'application/javascript'});
                 const url = URL.createObjectURL(blob);
                 await audioCtxMic.audioWorklet.addModule(url);
-
                 workletNode = new AudioWorkletNode(audioCtxMic, 'pcm16-processor');
-                
                 workletNode.port.onmessage = (e) => {
                     const chunk = e.data;
                     pcmBuffer.push(chunk);
                     samplesCount += chunk.length;
-
                     if (samplesCount >= SAMPLES_PER_SECOND) {
                         const merged = new Int16Array(samplesCount);
                         let offset = 0;
-                        for (const c of pcmBuffer) {
-                            merged.set(c, offset);
-                            offset += c.length;
-                        }
-                        
-                        if (conn && conn.readyState === WebSocket.OPEN) {
-                            conn.send(merged.buffer); 
-                        }
-                        
-                        pcmBuffer = [];
-                        samplesCount = 0;
+                        for (const c of pcmBuffer) { merged.set(c, offset); offset += c.length; }
+                        if (conn && conn.readyState === WebSocket.OPEN) { conn.send(merged.buffer); }
+                        pcmBuffer = []; samplesCount = 0;
                     }
                 };
-
                 const source = audioCtxMic.createMediaStreamSource(micStream);
                 source.connect(workletNode);
                 sendToRN('LOG', 'Mic Started');
-
-            } catch(e) {
-                sendToRN('ERROR', 'Mic Access Failed: ' + e.message + ' (Check baseUrl is localhost)');
-            }
+            } catch(e) { sendToRN('ERROR', 'Mic Access Failed: ' + e.message); }
         }
 
         function stopMic() {
             if (micStream) micStream.getTracks().forEach(t => t.stop());
             if (workletNode) workletNode.disconnect();
             if (audioCtxMic) audioCtxMic.close();
-            
-            if (conn && conn.readyState === WebSocket.OPEN) {
-                conn.send("STOP_AUDIO");
-            }
-            
-            micStream = null;
-            workletNode = null;
-            audioCtxMic = null;
-            pcmBuffer = [];
-            samplesCount = 0;
+            if (conn && conn.readyState === WebSocket.OPEN) { conn.send("STOP_AUDIO"); }
+            micStream = null; workletNode = null; audioCtxMic = null; pcmBuffer = []; samplesCount = 0;
             sendToRN('LOG', 'Mic Stopped');
         }
 
@@ -368,12 +395,7 @@ export default function VoiceAssistant() {
             if (data.type === 'INIT_CONFIG') connectWS(data.payload);
             if (data.type === 'START_MIC') startMic();
             if (data.type === 'STOP_MIC') stopMic();
-            if (data.type === 'DISCONNECT') {
-                if (conn) {
-                    conn.send("CLOSE_CONNECTION");
-                    conn.close();
-                }
-            }
+            if (data.type === 'DISCONNECT') { if (conn) { conn.send("CLOSE_CONNECTION"); conn.close(); } }
         });
     })();
   `;
@@ -389,11 +411,28 @@ export default function VoiceAssistant() {
                       style={[styles.voiceCard, selectedVoice === v.id && styles.voiceCardActive]}
                       onPress={() => setSelectedVoice(v.id)}
                   >
+                      {/* Gender Icon */}
                       <View style={[styles.voiceIcon, selectedVoice === v.id ? {backgroundColor: '#2563EB'} : {backgroundColor: '#E5E7EB'}]}>
                           <Ionicons name={v.gender === 'Male' ? 'man' : 'woman'} size={20} color={selectedVoice === v.id ? '#FFF' : '#6B7280'} />
                       </View>
+                      
+                      {/* Name */}
                       <Text style={[styles.voiceName, selectedVoice === v.id && styles.voiceNameActive]}>{v.name}</Text>
-                      {selectedVoice === v.id && <Ionicons name="checkmark-circle" size={18} color="#2563EB" style={styles.checkIcon} />}
+                      
+                      {/* Play Sample Button (Doesn't select, just plays) */}
+                      <TouchableOpacity 
+                        style={styles.playSampleBtn}
+                        onPress={() => handlePlaySample(v.id)}
+                      >
+                          <Ionicons 
+                            name={playingVoiceId === v.id ? "stop-circle" : "play-circle"} 
+                            size={24} 
+                            color={playingVoiceId === v.id ? "#EF4444" : "#2563EB"} 
+                          />
+                      </TouchableOpacity>
+
+                      {/* Selection Checkmark */}
+                      {selectedVoice === v.id && <View style={styles.checkBadge}><Ionicons name="checkmark" size={10} color="#FFF" /></View>}
                   </TouchableOpacity>
               ))}
           </View>
@@ -436,10 +475,7 @@ export default function VoiceAssistant() {
 
           <Text style={styles.status}>{statusText}</Text>
 
-          <TouchableOpacity 
-            onPress={handleToggleMic}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity onPress={handleToggleMic} activeOpacity={0.8}>
             <Animated.View style={[
                 styles.micButton, 
                 isListening && styles.micActive,
@@ -455,6 +491,15 @@ export default function VoiceAssistant() {
 
   return (
     <>
+      {showHelp && !isVisible && (
+          <Animated.View style={[styles.tooltipContainer, { opacity: fadeAnim }]}>
+              <View style={styles.tooltipBubble}>
+                  <Text style={styles.tooltipText}>Need any help? Tap me!</Text>
+                  <View style={styles.tooltipArrow} />
+              </View>
+          </Animated.View>
+      )}
+
       <TouchableOpacity style={styles.fab} onPress={() => { setIsVisible(true); setTimeout(handleConnect, 1000); }}>
         <Ionicons name="mic" size={28} color="#FFF" />
       </TouchableOpacity>
@@ -481,7 +526,6 @@ export default function VoiceAssistant() {
               </View>
             </View>
             
-            {/* HIDDEN WEBVIEW FOR LOGIC */}
             <View style={{ height: 0, width: 0, opacity: 0 }}>
                 <WebView
                     ref={webViewRef}
@@ -510,6 +554,10 @@ export default function VoiceAssistant() {
 
 const styles = StyleSheet.create({
   fab: { position: 'absolute', bottom: 20, right: 20, width: 60, height: 60, borderRadius: 30, backgroundColor: '#F97316', justifyContent: 'center', alignItems: 'center', elevation: 5, zIndex: 999 },
+  tooltipContainer: { position: 'absolute', bottom: 90, right: 20, zIndex: 998, alignItems: 'flex-end' },
+  tooltipBubble: { backgroundColor: '#1F2937', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, elevation: 4, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, position: 'relative' },
+  tooltipText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+  tooltipArrow: { position: 'absolute', bottom: -8, right: 20, width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#1F2937' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, minHeight: 450 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 12 },
@@ -529,12 +577,13 @@ const styles = StyleSheet.create({
   settingsContainer: { height: 350 },
   sectionHeader: { fontSize: 14, fontWeight: '700', color: '#374151', marginTop: 16, marginBottom: 10, textTransform: 'uppercase' },
   voiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  voiceCard: { width: '48%', backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', flexDirection: 'row' },
+  voiceCard: { width: '48%', backgroundColor: '#F9FAFB', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', flexDirection: 'row' },
   voiceCardActive: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   voiceIcon: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 8 },
-  voiceName: { fontWeight: '600', color: '#374151', flex: 1 },
+  voiceName: { fontWeight: '600', color: '#374151', flex: 1, fontSize: 13 },
   voiceNameActive: { color: '#2563EB' },
-  checkIcon: { marginLeft: 'auto' },
+  checkBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#2563EB', width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  playSampleBtn: { padding: 4 },
   chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   langChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' },
   langChipActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },

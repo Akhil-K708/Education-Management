@@ -28,7 +28,6 @@ export const getStudentExamResult = async (
     );
     const data = response.data;
 
-    // Mapping Backend DTO to Frontend Type
     const resultData: ExamResultData = {
         examId: data.examId,
         examName: data.examName,
@@ -56,6 +55,9 @@ export const getStudentExamResult = async (
     return resultData;
 
   } catch (error: any) {
+    if (error.response && error.response.status === 403) {
+        return null; 
+    }
     console.error("Error fetching student result:", error);
     return null; 
   }
@@ -84,7 +86,6 @@ export const getSubjectMappings = async (classSectionId: string): Promise<any[]>
 };
 
 // --- ADMIN: GET CLASS EXAM RESULTS (Detailed View) ---
-// Backend: GET /api/student/exams/class-result/{examId}/{classSectionId}
 export const getClassExamResults = async (
   examId: string, 
   classSectionId: string
@@ -101,7 +102,6 @@ export const getClassExamResults = async (
 };
 
 // --- ADMIN: PUBLISH RESULTS ---
-// Backend: PUT /api/student/exams/publish/{examId}/{classSectionId}
 export const publishResult = async (
   examId: string, 
   classSectionId: string, 

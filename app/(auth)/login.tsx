@@ -6,7 +6,9 @@ import {
   Image,
   ImageBackground,
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,7 +18,6 @@ import {
 import { authApi } from '../../src/api/axiosInstance';
 import { useAuth } from '../../src/context/AuthContext';
 
-// Keep the same background for consistency or change if needed
 const BACKGROUND_IMAGE_URL = 'https://as1.ftcdn.net/v2/jpg/15/97/15/88/1000_F_1597158825_9laxe2IuJ0tjrftGpEzDlz12icdYvECg.jpg';
 const SCHOOL_LOGO_URL = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSFUwsr9FXcBrBcvmM2HoEh7A7oI_GUa80drA&s';
 
@@ -25,6 +26,17 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // --- FORGOT PASSWORD STATE ---
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1); // 1: Send OTP, 2: Reset
+  const [resetLoading, setResetLoading] = useState(false);
+  
+  // Forgot Password Form Data
+  const [resetUsername, setResetUsername] = useState('');
+  const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   const { login } = useAuth();
 
@@ -60,11 +72,73 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
-  
-  const handleForgotPassword = () => {
-    Alert.alert('Forgot Password', 'Please contact the school administration to reset your password.');
+
+  // --- STEP 1: SEND OTP ---
+  const handleSendOtp = async () => {
+      if (!resetUsername) {
+          Alert.alert("Error", "Please enter your Username / Student ID");
+          return;
+      }
+      setResetLoading(true);
+      try {
+          // Backend: POST /api/auth/forgot-password { "username": "..." }
+          await authApi.post('/forgot-password', { username: resetUsername });
+          Alert.alert("OTP Sent", "Please check your registered email for the OTP.");
+          setForgotStep(2); // Move to next step
+      } catch (e: any) {
+          const msg = e.response?.data?.message || "Failed to send OTP. Check username.";
+          Alert.alert("Error", msg);
+      } finally {
+          setResetLoading(false);
+      }
   };
 
+  // --- STEP 2: RESET PASSWORD ---
+  const handleResetPassword = async () => {
+      if (!otp || !newPassword || !confirmNewPassword) {
+          Alert.alert("Error", "Please fill all fields");
+          return;
+      }
+      if (newPassword !== confirmNewPassword) {
+          Alert.alert("Error", "Passwords do not match");
+          return;
+      }
+
+      setResetLoading(true);
+      try {
+          // Backend: POST /api/auth/reset-password { username, otp, newPassword, confirmNewPassword }
+          await authApi.post('/reset-password', {
+              username: resetUsername,
+              otp,
+              newPassword,
+              confirmNewPassword
+          });
+          
+          Alert.alert("Success", "Password reset successfully! Please login.");
+          setShowForgotModal(false);
+          setForgotStep(1);
+          setResetUsername('');
+          setOtp('');
+          setNewPassword('');
+          setConfirmNewPassword('');
+          
+      } catch (e: any) {
+          const msg = e.response?.data?.message || "Failed to reset password. Invalid OTP.";
+          Alert.alert("Error", msg);
+      } finally {
+          setResetLoading(false);
+      }
+  };
+
+  const openForgotModal = () => {
+      setForgotStep(1);
+      setResetUsername('');
+      setOtp('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setShowForgotModal(true);
+  };
+  
   return (
     <ImageBackground
       source={{ uri: BACKGROUND_IMAGE_URL }}
@@ -127,7 +201,7 @@ export default function LoginScreen() {
             
             <TouchableOpacity
                 style={styles.forgotPasswordContainer}
-                onPress={handleForgotPassword}
+                onPress={openForgotModal}
             >
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
@@ -135,6 +209,90 @@ export default function LoginScreen() {
             </View>
         </KeyboardAvoidingView>
       </View>
+
+      {/* --- FORGOT PASSWORD MODAL --- */}
+      <Modal visible={showForgotModal} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+              <View style={[styles.modalContent, Platform.OS === 'web' && { maxWidth: 400 }]}>
+                  <View style={styles.modalHeader}>
+                      <Text style={styles.modalTitle}>
+                          {forgotStep === 1 ? "Reset Password" : "Set New Password"}
+                      </Text>
+                      <TouchableOpacity onPress={() => setShowForgotModal(false)}>
+                          <Text style={styles.closeText}>Close</Text>
+                      </TouchableOpacity>
+                  </View>
+
+                  {forgotStep === 1 ? (
+                      // STEP 1: ENTER USERNAME
+                      <View>
+                          <Text style={styles.modalSubText}>Enter your Username or Student ID. We will send an OTP to your registered email.</Text>
+                          <TextInput 
+                              style={styles.modalInput} 
+                              placeholder="Username / Student ID" 
+                              value={resetUsername}
+                              onChangeText={setResetUsername}
+                              autoCapitalize="none"
+                          />
+                          <TouchableOpacity 
+                              style={styles.modalBtn} 
+                              onPress={handleSendOtp}
+                              disabled={resetLoading}
+                          >
+                              {resetLoading ? <ActivityIndicator color="#FFF"/> : <Text style={styles.modalBtnText}>Send OTP</Text>}
+                          </TouchableOpacity>
+                      </View>
+                  ) : (
+                      // STEP 2: ENTER OTP & NEW PASSWORD
+                      <ScrollView>
+                          <Text style={styles.modalSubText}>Enter the OTP sent to your email and set a new password.</Text>
+                          
+                          <TextInput 
+                              style={styles.modalInput} 
+                              placeholder="Enter OTP" 
+                              value={otp}
+                              onChangeText={setOtp}
+                              keyboardType="numeric"
+                          />
+                          
+                          <TextInput 
+                              style={styles.modalInput} 
+                              placeholder="New Password" 
+                              value={newPassword}
+                              onChangeText={setNewPassword}
+                              secureTextEntry
+                          />
+
+                          <TextInput 
+                              style={styles.modalInput} 
+                              placeholder="Confirm New Password" 
+                              value={confirmNewPassword}
+                              onChangeText={setConfirmNewPassword}
+                              secureTextEntry
+                          />
+
+                          <View style={styles.btnRow}>
+                              <TouchableOpacity 
+                                  style={styles.backBtn} 
+                                  onPress={() => setForgotStep(1)}
+                              >
+                                  <Text style={styles.backBtnText}>Back</Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity 
+                                  style={[styles.modalBtn, {flex: 1}]} 
+                                  onPress={handleResetPassword}
+                                  disabled={resetLoading}
+                              >
+                                  {resetLoading ? <ActivityIndicator color="#FFF"/> : <Text style={styles.modalBtnText}>Reset Password</Text>}
+                              </TouchableOpacity>
+                          </View>
+                      </ScrollView>
+                  )}
+              </View>
+          </View>
+      </Modal>
+
     </ImageBackground>
   );
 }
@@ -152,7 +310,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(17, 24, 39, 0.7)', // Darker overlay for better contrast
+    backgroundColor: 'rgba(17, 24, 39, 0.7)', 
     justifyContent: 'center',
     padding: 20,
     width: '100%',
@@ -173,7 +331,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       web: {
         maxWidth: 420,
-        boxShadow: '0px 10px 40px rgba(0,0,0,0.2)', // Modern Web Shadow
+        boxShadow: '0px 10px 40px rgba(0,0,0,0.2)', 
       } as any,
       native: {
         shadowColor: '#000',
@@ -244,7 +402,7 @@ const styles = StyleSheet.create({
   },
 
   button: {
-    backgroundColor: '#2563EB', // Brand Color
+    backgroundColor: '#2563EB', 
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -271,4 +429,79 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+
+  // --- MODAL STYLES ---
+  modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20
+  },
+  modalContent: {
+      backgroundColor: '#FFF',
+      width: '100%',
+      borderRadius: 16,
+      padding: 24,
+      elevation: 10
+  },
+  modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16
+  },
+  modalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#111827'
+  },
+  closeText: {
+      color: '#6B7280',
+      fontWeight: '600'
+  },
+  modalSubText: {
+      fontSize: 14,
+      color: '#6B7280',
+      marginBottom: 20,
+      lineHeight: 20
+  },
+  modalInput: {
+      borderWidth: 1,
+      borderColor: '#E5E7EB',
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 16,
+      marginBottom: 16,
+      backgroundColor: '#F9FAFB'
+  },
+  modalBtn: {
+      backgroundColor: '#2563EB',
+      padding: 14,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: 10
+  },
+  modalBtnText: {
+      color: '#FFF',
+      fontWeight: 'bold',
+      fontSize: 16
+  },
+  btnRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 10
+  },
+  backBtn: {
+      padding: 14,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: '#D1D5DB',
+      alignItems: 'center',
+      minWidth: 80
+  },
+  backBtnText: {
+      color: '#374151',
+      fontWeight: '600'
+  }
 });

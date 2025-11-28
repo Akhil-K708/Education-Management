@@ -143,11 +143,7 @@ export default function StudentAssignmentsView() {
           new Blob([JSON.stringify(payload)], { type: "application/json" })
         );
       } else {
-        formData.append("data", {
-          name: "data.json",
-          type: "application/json",
-          string: JSON.stringify(payload),
-        } as any);
+        formData.append("data", JSON.stringify(payload));
       }
  
       for (let i = 0; i < selectedFiles.length; i++) {
@@ -399,6 +395,7 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: "bold" },
   label: { fontSize: 14, fontWeight: "600", marginBottom: 4 },
+
   value: { fontSize: 16, fontWeight: "bold", marginBottom: 12 },
   descText: { fontSize: 14, color: '#555', marginBottom: 12 },
   inputArea: { borderWidth: 1, borderColor: "#CCC", borderRadius: 8, padding: 12, minHeight: 100, marginBottom: 12 },

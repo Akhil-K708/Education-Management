@@ -165,11 +165,7 @@ export default function TeacherAssignmentsView() {
           new Blob([JSON.stringify(payload)], { type: "application/json" })
         );
       } else {
-        formData.append("data", {
-          name: "data.json",
-          type: "application/json",
-          string: JSON.stringify(payload),
-        } as any);
+        formData.append("data", JSON.stringify(payload));
       }
  
       if (selectedFile) {

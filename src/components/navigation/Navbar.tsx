@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -14,7 +15,9 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { authApi } from '../../api/axiosInstance'; // 🔥 Imported Auth API
 import { getStudentProfile } from '../../api/studentService';
+import { adminMenu, studentMenu, teacherMenu } from '../../constants/menu';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import NotificationList from '../notifications/NotificationList';
@@ -35,7 +38,11 @@ interface NavbarProps {
 export const Navbar = ({ onMenuPress }: NavbarProps) => {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  
+  // 🔥 FIX: Defined isWeb to resolve the crash
   const isMobile = width < 768;
+  const isWeb = width >= 768;
+
   const { state } = useAuth();
   const user = state.user;
   
@@ -46,6 +53,11 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
   const [profileImg, setProfileImg] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // --- CHANGE PASSWORD STATE ---
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passForm, setPassForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+  const [isChangingPass, setIsChangingPass] = useState(false);
 
   // Fetch Student Profile Image
   useEffect(() => {
@@ -62,68 +74,99 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
     loadProfile();
   }, [user]);
 
-  // --- SEARCH LOGIC (Updated) ---
+  // --- SEARCH LOGIC ---
   const handleSearchSubmit = () => {
     const query = searchQuery.trim().toLowerCase();
     
     if (!query) return;
 
-    // 1. Assignments
-    if (query.includes('assignment') || query.includes('homework') || query.includes('work')) {
-        router.push('/(app)/assignments');
+    //  Determine which menu to search based on Role
+    let accessibleMenu: any[] = [];
+    if (user?.role === 'ADMIN') {
+        accessibleMenu = adminMenu;
+    } else if (user?.role === 'TEACHER') {
+        accessibleMenu = teacherMenu;
+    } else if (user?.role === 'STUDENT') {
+        accessibleMenu = studentMenu;
+    }
+
+    const match = accessibleMenu.find(item => 
+        item.label.toLowerCase().includes(query)
+    );
+
+    if (match) {
+        // Navigate to the matched path
+        router.push(match.path as any);
     } 
-    // 2. Teachers
-    else if (query.includes('teacher')) {
-        if (user?.role === 'ADMIN') {
-            router.push('/(app)/teachers'); // Admin sees list
-        } else if (user?.role === 'TEACHER') {
-            router.push('/(app)/profile'); // Teacher sees own profile
-        } else {
-            Alert.alert("Access Denied", "Teacher directory is restricted for students.");
-        }
-    } 
-    // 3. Admin Dashboard
-    else if (query.includes('admin') || query.includes('dashboard')) {
-        if (user?.role === 'ADMIN') {
-            router.push('/(app)'); 
-        } else {
-            Alert.alert("Restricted", "Admin access only.");
-        }
-    }
-    // 4. Students
-    else if (query.includes('student')) {
-        if (user?.role === 'ADMIN') {
-            router.push('/(app)/students');
-        } else {
-            router.push('/(app)/profile'); // Go to My Profile
-        }
-    }
-    // 5. Exams
-    else if (query.includes('exam') || query.includes('result')) {
-        if (query.includes('result')) router.push('/(app)/results');
-        else router.push('/(app)/examschedule');
-    }
-    // 6. Transport
-    else if (query.includes('bus') || query.includes('transport') || query.includes('driver')) {
-        router.push('/(app)/transport');
-    }
+    // Fallback for common aliases if exact menu label isn't typed
     else {
-      Alert.alert("Search", `No specific module found for: "${searchQuery}"`);
+        // Common aliases mapping
+        if (query.includes('home') || query.includes('dash')) {
+            router.push('/(app)');
+        } else if (query.includes('work') || query.includes('homework')) {
+            router.push('/(app)/assignments');
+        } else if (query.includes('bus') || query.includes('driver')) {
+            router.push('/(app)/transport');
+        } else if (query.includes('mark') || query.includes('score')) {
+            router.push('/(app)/results');
+        } else if (query.includes('fee') || query.includes('payment')) {
+            const hasFeeAccess = accessibleMenu.some(m => m.path.includes('fee') || m.path.includes('account'));
+            if (hasFeeAccess) {
+                if (user?.role === 'ADMIN') router.push('/(app)/account');
+                else router.push('/(app)/fees');
+            } else {
+                Alert.alert("Search", `No module found for: "${searchQuery}"`);
+            }
+        } else {
+            Alert.alert("Search", `No module found for: "${searchQuery}"`);
+        }
     }
     
-    setSearchQuery(''); // Clear after search
+    setSearchQuery('');
   };
 
-  const handleChangePassword = () => {
-    Alert.alert("Change Password", "Navigate to Change Password Screen");
-    setShowProfileModal(false);
+  // --- PASSWORD LOGIC ---
+  const handleChangePasswordClick = () => {
+    setShowProfileModal(false); // Close profile dropdown
+    setPassForm({ oldPassword: '', newPassword: '', confirmPassword: '' }); // Reset form
+    setShowPasswordModal(true); // Open Password Modal
+  };
+
+  const handleSubmitPassword = async () => {
+      const { oldPassword, newPassword, confirmPassword } = passForm;
+
+      if (!oldPassword || !newPassword || !confirmPassword) {
+          Alert.alert("Error", "Please fill all fields");
+          return;
+      }
+      if (newPassword !== confirmPassword) {
+          Alert.alert("Error", "New password and confirm password do not match");
+          return;
+      }
+
+      setIsChangingPass(true);
+      try {
+          // Backend API call
+          await authApi.post('/change-password', {
+              oldPassword,
+              newPassword,
+              confirmNewPassword: confirmPassword
+          });
+
+          Alert.alert("Success", "Password updated successfully!");
+          setShowPasswordModal(false);
+      } catch (e: any) {
+          const msg = e.response?.data || "Failed to update password. Check old password.";
+          Alert.alert("Error", typeof msg === 'string' ? msg : "Update failed");
+      } finally {
+          setIsChangingPass(false);
+      }
   };
 
   return (
     <View style={[styles.navbar, isMobile && styles.navbarMobile]}>
       
       {/* --- LEFT SECTION: Logo & Menu --- */}
-      {/* Web: Increased Flex to 2 to accommodate long names */}
       <View style={styles.left}>
         <TouchableOpacity onPress={onMenuPress} style={styles.menuButton}>
           <Ionicons name="menu" size={28} color="#1F2937" />
@@ -141,7 +184,7 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
             </Text>
         </View>
 
-        {/* User Info (Web Only) - Adjusted Margins for better fit */}
+        {/* User Info (Web Only) */}
         {!isMobile && user && (
           <View style={styles.userInfo}>
             <Text style={styles.usernameText} numberOfLines={1}>
@@ -155,7 +198,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
       </View>
 
       {/* --- CENTER SECTION (Search - Web Only) --- */}
-      {/* Web: Flex 2 (Balanced with Left) */}
       {!isMobile && (
         <View style={styles.center}>
           <Ionicons
@@ -165,7 +207,7 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
             style={styles.searchIcon}
           />
           <TextInput
-            placeholder="Search modules (e.g. assignments, teachers)..."
+            placeholder="Search modules (e.g. Accounts, Exams)..."
             style={styles.searchBar}
             placeholderTextColor="#9CA3AF"
             value={searchQuery}
@@ -272,8 +314,8 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
 
                     <View style={styles.divider} />
 
-                    {/* Options - Removed Account Settings */}
-                    <TouchableOpacity style={styles.menuOption} onPress={handleChangePassword}>
+                    {/* Options */}
+                    <TouchableOpacity style={styles.menuOption} onPress={handleChangePasswordClick}>
                         <View style={[styles.menuIconBox, {backgroundColor: '#EFF6FF'}]}>
                             <Ionicons name="key-outline" size={18} color="#2563EB" />
                         </View>
@@ -284,6 +326,79 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
                 </View>
             </TouchableWithoutFeedback>
         </TouchableOpacity>
+      </Modal>
+
+      {/* --- CHANGE PASSWORD MODAL (New) --- */}
+      <Modal
+        visible={showPasswordModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
+          <View style={styles.modalOverlay}>
+              <View style={[styles.modalContent, isWeb && {maxWidth: 400}]}>
+                  <View style={styles.modalHeader}>
+                      <Text style={styles.modalTitle}>Change Password</Text>
+                      <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
+                          <Ionicons name="close" size={24} color="#374151" />
+                      </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Old Password</Text>
+                      <TextInput 
+                          style={styles.input} 
+                          secureTextEntry 
+                          placeholder="Enter old password"
+                          value={passForm.oldPassword}
+                          onChangeText={(t) => setPassForm({...passForm, oldPassword: t})}
+                      />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                      <Text style={styles.label}>New Password</Text>
+                      <TextInput 
+                          style={styles.input} 
+                          secureTextEntry 
+                          placeholder="Enter new password"
+                          value={passForm.newPassword}
+                          onChangeText={(t) => setPassForm({...passForm, newPassword: t})}
+                      />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Confirm New Password</Text>
+                      <TextInput 
+                          style={styles.input} 
+                          secureTextEntry 
+                          placeholder="Confirm new password"
+                          value={passForm.confirmPassword}
+                          onChangeText={(t) => setPassForm({...passForm, confirmPassword: t})}
+                      />
+                  </View>
+
+                  <View style={styles.modalActions}>
+                      <TouchableOpacity 
+                          style={styles.cancelBtn} 
+                          onPress={() => setShowPasswordModal(false)}
+                      >
+                          <Text style={styles.cancelText}>Cancel</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                          style={styles.saveBtn} 
+                          onPress={handleSubmitPassword}
+                          disabled={isChangingPass}
+                      >
+                          {isChangingPass ? (
+                              <ActivityIndicator color="#FFF" size="small" />
+                          ) : (
+                              <Text style={styles.saveText}>Update Password</Text>
+                          )}
+                      </TouchableOpacity>
+                  </View>
+              </View>
+          </View>
       </Modal>
 
     </View>
@@ -311,9 +426,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent' 
   },
   
-  // 🔥 FIX: Increased Left Flex to make space for long school names
   left: { 
-      flex: 2,  // Was 1.5
+      flex: 2,
       flexDirection: 'row', 
       alignItems: 'center',
       minWidth: 0 
@@ -325,7 +439,7 @@ const styles = StyleSheet.create({
       flexDirection: 'row', 
       alignItems: 'center', 
       gap: 8,
-      flexShrink: 1 // 🔥 Allow container to shrink on mobile/small screens
+      flexShrink: 1 
   },
   
   schoolLogo: {
@@ -339,12 +453,11 @@ const styles = StyleSheet.create({
       fontWeight: '800', 
       color: '#111827', 
       letterSpacing: -0.5,
-      flexShrink: 1 // 🔥 Allow text to shrink and truncate
+      flexShrink: 1
   },
   
-  // 🔥 FIX: Reduced marginLeft to avoid overlap with large titles
   userInfo: { 
-      marginLeft: 16,  // Was 40
+      marginLeft: 16,
       paddingLeft: 16, 
       borderLeftWidth: 1, 
       borderLeftColor: '#E5E7EB', 
@@ -354,15 +467,14 @@ const styles = StyleSheet.create({
   usernameText: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
   roleText: { fontSize: 11, color: '#6B7280', fontWeight: '600', marginTop: 2 },
   
-  // 🔥 FIX: Adjusted Center Flex to balance layout
   center: {
-    flex: 2, // Was 3
+    flex: 2, 
     flexDirection: 'row', 
     alignItems: 'center', 
     backgroundColor: '#F9FAFB',
     borderRadius: 8, 
     paddingHorizontal: 12, 
-    marginHorizontal: 16, // Was 20
+    marginHorizontal: 16, 
     borderWidth: 1, 
     borderColor: '#E5E7EB'
   },
@@ -393,15 +505,14 @@ const styles = StyleSheet.create({
       backgroundColor: 'rgba(0,0,0,0.4)', 
       justifyContent: 'center',
       alignItems: 'center', 
+      padding: 20
   },
   
-  // Profile Overlay (Transparent or light to show it's a dropdown)
   profileOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.1)', 
   },
 
-  // Notification Dropdown
   notificationDropdown: {
       backgroundColor: '#FFF',
       borderRadius: 12, 
@@ -419,7 +530,6 @@ const styles = StyleSheet.create({
       marginTop: 60, width: '92%', height: 400, maxHeight: '70%', 
   },
 
-  // Profile Dropdown (Positioned Near Button)
   profileDropdown: {
       position: 'absolute',
       top: 60, 
@@ -448,5 +558,19 @@ const styles = StyleSheet.create({
   menuOption: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   menuIconBox: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   menuOptionText: { flex: 1, fontSize: 14, color: '#374151', fontWeight: '500' },
+
+  // --- PASSWORD MODAL ---
+  modalContent: { backgroundColor: '#FFF', borderRadius: 16, padding: 24, width: '100%', maxWidth: 350 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
+  inputGroup: { marginBottom: 16 },
+  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6 },
+  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, backgroundColor: '#F9FAFB' },
+  
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10, gap: 12 },
+  cancelBtn: { paddingVertical: 10, paddingHorizontal: 16 },
+  cancelText: { color: '#6B7280', fontWeight: '600' },
+  saveBtn: { backgroundColor: '#2563EB', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, alignItems: 'center' },
+  saveText: { color: '#FFF', fontWeight: 'bold' },
 
 });

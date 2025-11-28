@@ -122,6 +122,7 @@ export const assignSubjectTeacher = async (data: AssignSubjectTeacherDTO) => {
   }
 };
  
+// 🔥 FIX: Updated to use studentApi (Axios) which handles Auth Token automatically
 export const submitAdmission = async (admissionData: any, photoUri?: string) => {
   try {
     const formData = new FormData();
@@ -153,24 +154,14 @@ export const submitAdmission = async (admissionData: any, photoUri?: string) => 
       }
     }
  
-    // Hardcoded URL based on your config - Consider moving to environment var
-    const response = await fetch(
-      "http://192.168.0.113:8080/api/student/admission",
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-        },
-        body: formData,
-      }
-    );
+    // Using studentApi instead of fetch to include Auth Token
+    const response = await studentApi.post('/admission', formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
  
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(err);
-    }
- 
-    return await response.json();
+    return response.data;
   } catch (error) {
     console.error("Admission submit error:", error);
     throw error;
@@ -356,6 +347,7 @@ export const updateClassSection = async (classSectionId: string, data: ClassSect
   }
 };
  
+// 🔥 FIX: Updated to use studentApi (Axios) which handles Auth Token automatically
 export const updateStudent = async (studentId: string, studentData: any, photoUri?: string) => {
   try {
     const formData = new FormData();
@@ -386,23 +378,13 @@ export const updateStudent = async (studentId: string, studentData: any, photoUr
       }
     }
  
-    const response = await fetch(
-      `http://192.168.0.113:8080/api/student/${studentId}`,
-      {
-        method: "PUT",
-        headers: {
-          Accept: "application/json",
-        },
-        body: formData,
-      }
-    );
+    const response = await studentApi.put(`/${studentId}`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
  
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(err);
-    }
- 
-    return await response.json();
+    return response.data;
  
   } catch (error: any) {
     console.error("Update student error:", error);

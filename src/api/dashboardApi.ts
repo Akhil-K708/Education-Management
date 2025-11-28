@@ -1,13 +1,13 @@
 import { jwtDecode } from 'jwt-decode';
 import { Platform } from 'react-native';
 import {
-  AttendanceChartData,
-  ClassStats,
-  DashboardData,
-  NoticeItem,
-  SchoolFeedItem,
-  StudentDashboardCombinedData,
-  StudentProfileInfo,
+    AttendanceChartData,
+    ClassStats,
+    DashboardData,
+    NoticeItem,
+    SchoolFeedItem,
+    StudentDashboardCombinedData,
+    StudentProfileInfo,
 } from '../types/dashboard';
 import { getFromStorage } from '../utils/storage';
 
@@ -57,14 +57,14 @@ export const getSchoolFeed = async (): Promise<SchoolFeedItem[]> => {
   }
 };
 
-// 🔥 CREATE POST (Fixed 400 Error - Using 'data' key)
+// 🔥 CREATE POST (Fixed to use studentApi for Auth)
 export const createSchoolFeedPost = async (postData: any, photoUri?: string) => {
-  return submitFeedData(`${API_BASE_URL}/api/student/feed/create`, 'POST', postData, photoUri);
+  return submitFeedData('/feed/create', 'POST', postData, photoUri);
 };
 
 // 🔥 UPDATE POST
 export const updateSchoolFeedPost = async (id: string, postData: any, photoUri?: string) => {
-  return submitFeedData(`${API_BASE_URL}/api/student/feed/update/${id}`, 'PUT', postData, photoUri);
+  return submitFeedData(`/feed/update/${id}`, 'PUT', postData, photoUri);
 };
 
 // 🔥 DELETE POST
@@ -77,8 +77,8 @@ export const deleteSchoolFeedPost = async (id: string) => {
   }
 };
 
-// --- HELPER FOR MULTIPART FORM DATA ---
-const submitFeedData = async (url: string, method: 'POST' | 'PUT', jsonData: any, photoUri?: string) => {
+// --- HELPER FOR MULTIPART FORM DATA WITH AXIOS ---
+const submitFeedData = async (endpoint: string, method: 'POST' | 'PUT', jsonData: any, photoUri?: string) => {
     try {
         const formData = new FormData();
 
@@ -107,29 +107,21 @@ const submitFeedData = async (url: string, method: 'POST' | 'PUT', jsonData: any
             }
         }
 
-        // 3. Send Request
-        const token = await getFromStorage('accessToken');
-        const headers: any = {
-            'Accept': 'application/json',
-            // Content-Type handled automatically
+        // 3. Send Request using studentApi (Axios handles Auth)
+        let response;
+        const config = {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            }
         };
-        
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
+
+        if (method === 'POST') {
+            response = await studentApi.post(endpoint, formData, config);
+        } else {
+            response = await studentApi.put(endpoint, formData, config);
         }
 
-        const response = await fetch(url, {
-            method: method,
-            headers: headers,
-            body: formData,
-        });
-
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`Failed: ${response.status} - ${errText}`);
-        }
-
-        return await response.json();
+        return response.data;
     } catch (error) {
         console.error(`Error in ${method} post:`, error);
         throw error;

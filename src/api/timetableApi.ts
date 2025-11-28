@@ -43,7 +43,10 @@ export const getStudentIdByClass = async (classSectionId: string): Promise<strin
       return response.data[0].studentId;
     }
     return null;
-  } catch (error) {
+  } catch (error: any) {
+    if (error.response && (error.response.status === 403 || error.response.status === 404)) {
+        return null;
+    }
     return null;
   }
 };

@@ -38,16 +38,12 @@ export default function StudentResultView() {
     if (!user?.username) return;
     setLoading(true);
     try {
-      // Get Student Profile for Class ID
       const profile = await getStudentProfile(user.username);
       if (profile.classSectionId) {
           setClassSectionId(profile.classSectionId);
-          
-          // Get Exams
           const exams = await getAvailableExams();
           setExamsList(exams);
           
-          // Select first exam by default if available
           if (exams.length > 0) {
              setSelectedExamId(exams[0].id);
           }
@@ -81,6 +77,7 @@ export default function StudentResultView() {
         if (data) {
             setResultData(data);
         } else {
+            // 🔥 FIX: If data is null (meaning 403 or empty), show friendly message
             setErrorMsg("Results not yet published for this exam.");
         }
       } catch (e) {
@@ -99,7 +96,10 @@ export default function StudentResultView() {
           getStudentExamResult(selectedExamId, user!.username, classSectionId)
             .then(data => {
                 if (data) setResultData(data);
-                else setErrorMsg("Results not yet published.");
+                else {
+                    setResultData(null);
+                    setErrorMsg("Results not yet published.");
+                }
                 setRefreshing(false);
             })
             .catch(() => setRefreshing(false));
@@ -168,8 +168,8 @@ export default function StudentResultView() {
         </TouchableOpacity>
       </Modal>
 
-      {/* ERROR MESSAGE */}
-      {errorMsg && !resultData && (
+      {/* 🔥 FIX: ERROR MESSAGE DISPLAY */}
+      {errorMsg && !resultData && !loading && (
           <View style={styles.errorContainer}>
               <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
               <Text style={styles.errorText}>{errorMsg}</Text>
@@ -179,7 +179,7 @@ export default function StudentResultView() {
       {/* RESULT DISPLAY */}
       {resultData && (
         <>
-          {/* 1. SUMMARY CARDS */}
+          {/* SUMMARY CARDS */}
           <View style={styles.summaryContainer}>
             <View style={[styles.summaryCard, !isMobile && styles.summaryCardWeb]}>
               <Text style={styles.summaryLabel}>No. of Subjects</Text>
@@ -199,16 +199,14 @@ export default function StudentResultView() {
             </View>
           </View>
 
-          {/* 2. MARKS TABLE */}
+          {/* MARKS TABLE */}
           <View style={styles.tableWrapper}>
-            {/* If mobile, wrap in horizontal scroll; if web, standard View */}
             <ScrollView 
               horizontal={isMobile} 
               showsHorizontalScrollIndicator={isMobile}
               contentContainerStyle={isMobile ? {flexGrow: 1} : {width: '100%'}}
             >
               <View style={{minWidth: isMobile ? 600 : '100%', width: '100%'}}>
-                {/* Header */}
                 <View style={styles.tableHeaderRow}>
                   <View style={[styles.headerCell, isMobile ? styles.colSubject : styles.webColSubject]}>
                     <Text style={styles.headerText}>Subject</Text>
@@ -233,7 +231,6 @@ export default function StudentResultView() {
                   </View>
                 </View>
 
-                {/* Rows */}
                 {resultData.subjects.map((sub) => (
                   <View key={sub.id} style={styles.tableRow}>
                     <View style={[styles.cell, isMobile ? styles.colSubject : styles.webColSubject]}>
@@ -275,7 +272,6 @@ export default function StudentResultView() {
             </ScrollView>
           </View>
 
-          {/* 3. FOOTER MESSAGE */}
           <View style={styles.footerContainer}>
             <Text style={styles.footerLabel}>Remarks:</Text>
             <Text style={styles.footerMessage}>
@@ -293,49 +289,41 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   pageTitle: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 20 },
   
-  // Dropdown
   dropdownContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   dropdownLabel: { fontSize: 16, fontWeight: '600', color: '#374151', marginRight: 10 },
   dropdownButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', minWidth: 180, justifyContent: 'space-between' },
   dropdownButtonText: { fontSize: 16, color: '#111827' },
   
-  // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#FFF', width: '80%', maxWidth: 300, borderRadius: 12, padding: 10, elevation: 5 },
   modalItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   modalItemText: { fontSize: 16, color: '#374151' },
   modalItemTextSelected: { color: '#F97316', fontWeight: 'bold' },
   
-  // Summary
   summaryContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 20, gap: 10 },
   summaryCard: { width: '48%', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
   summaryCardWeb: { width: '23%' },
   summaryLabel: { fontSize: 13, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', fontWeight: '600' },
   summaryValue: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
   
-  // Table Wrapper
   tableWrapper: { backgroundColor: '#FFFFFF', borderRadius: 12, elevation: 2, overflow: 'hidden', marginBottom: 20, borderWidth: 1, borderColor: '#E5E7EB' },
   tableHeaderRow: { flexDirection: 'row', backgroundColor: '#F9FAFB', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#F3F4F6', backgroundColor: '#FFFFFF', alignItems: 'center' },
   
-  // Cells
   headerCell: { padding: 12, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#E5E7EB' },
   cell: { padding: 12, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#F3F4F6' },
   headerText: { fontSize: 11, fontWeight: 'bold', color: '#374151', textAlign: 'center', textTransform: 'uppercase' },
   cellText: { fontSize: 13, color: '#1F2937' },
   cellTextSubject: { fontSize: 14, fontWeight: '600', color: '#111827', textTransform: 'capitalize', textAlign: 'left' },
   
-  // --- MOBILE COLUMN WIDTHS (Fixed) ---
   colSubject: { width: 140, alignItems: 'flex-start' }, 
   colNum: { width: 70 }, 
   colStatus: { width: 90, borderRightWidth: 0 },
 
-  // --- WEB COLUMN WIDTHS (Flexible - Full Width) ---
-  webColSubject: { flex: 2, alignItems: 'flex-start' }, // More space for Subject Name
-  webColNum: { flex: 1 }, // Equal space for marks
+  webColSubject: { flex: 2, alignItems: 'flex-start' },
+  webColNum: { flex: 1 },
   webColStatus: { flex: 1, borderRightWidth: 0 },
   
-  // Badges
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   passBadge: { backgroundColor: '#D1FAE5' },
   failBadge: { backgroundColor: '#FEE2E2' },
@@ -343,12 +331,10 @@ const styles = StyleSheet.create({
   passText: { color: '#059669' }, 
   failText: { color: '#DC2626' },
   
-  // Footer
   footerContainer: { backgroundColor: '#FFFFFF', padding: 20, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 20 },
   footerLabel: { fontSize: 14, fontWeight: 'bold', color: '#374151', marginBottom: 4 },
   footerMessage: { fontSize: 16, color: '#4B5563', fontStyle: 'italic', lineHeight: 22 },
   
-  // Error State
   errorContainer: { alignItems: 'center', marginTop: 50 },
   errorText: { marginTop: 10, color: '#6B7280', fontSize: 16 },
 });
