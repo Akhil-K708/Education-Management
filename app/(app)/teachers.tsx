@@ -27,8 +27,6 @@ import {
 } from '../../src/api/adminApi';
 import { useAuth } from '../../src/context/AuthContext';
 
-// Extending TeacherDTO locally to ensure subjectIds are recognized 
-// (assuming the backend DTO includes subjectIds list)
 interface ExtendedTeacherDTO extends TeacherDTO {
   subjectIds?: string[];
 }
@@ -69,13 +67,11 @@ export default function TeachersScreen() {
     address: ''
   });
   
-  // Selected Subjects State
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
 
   const loadInitialData = async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      // Fetch both Teachers and Subjects
       const [teachersData, subjectsData] = await Promise.all([
         getAllTeachers(),
         getAllSubjects()
@@ -113,11 +109,10 @@ export default function TeachersScreen() {
 
     setIsSubmitting(true);
     try {
-      // Prepare payload including subjectIds
       const teacherData = {
         ...formData,
         experience: formData.experience ? parseInt(formData.experience) : 0,
-        subjectIds: selectedSubjectIds // Adding the selected subjects logic
+        subjectIds: selectedSubjectIds 
       };
 
       if (isEditMode && editingTeacherId) {

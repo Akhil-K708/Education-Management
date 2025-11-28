@@ -54,18 +54,18 @@ export interface AttendanceChartData {
   datasets: [{ data: number[] }];
 }
 
-// --- NEW TYPES FOR SCHOOL BUZZ (FEED) ---
+// --- TYPES FOR SCHOOL BUZZ ---
 
 export type SchoolFeedType = 'EVENT' | 'QUOTE' | 'IMAGE';
 
 export interface SchoolFeedItem {
   id: string;
   type: SchoolFeedType;
-  title: string; // Title or Quote Text
+  title: string; 
   description?: string;
-  imageUrl?: string; // For Image posts
+  imageUrl?: string; 
   postDate: string;
-  themeColor?: string; // Optional color override
+  themeColor?: string; 
 }
 
 // Combined Data Type for Student Dashboard API Response
@@ -74,5 +74,5 @@ export interface StudentDashboardCombinedData {
   classStats: ClassStats;
   notices: NoticeItem[];
   attendanceChart: AttendanceChartData;
-  schoolFeed: SchoolFeedItem[]; // Changed from 'highlights' to 'schoolFeed'
+  schoolFeed: SchoolFeedItem[]; 
 }

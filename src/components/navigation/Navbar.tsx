@@ -15,7 +15,7 @@ import {
     useWindowDimensions,
     View,
 } from 'react-native';
-import { authApi } from '../../api/axiosInstance'; // 🔥 Imported Auth API
+import { authApi } from '../../api/axiosInstance';
 import { getStudentProfile } from '../../api/studentService';
 import { adminMenu, studentMenu, teacherMenu } from '../../constants/menu';
 import { useAuth } from '../../context/AuthContext';
@@ -39,7 +39,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
   const router = useRouter();
   const { width } = useWindowDimensions();
   
-  // 🔥 FIX: Defined isWeb to resolve the crash
   const isMobile = width < 768;
   const isWeb = width >= 768;
 
@@ -49,7 +48,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
   const { unreadCount } = useNotification();
   const [showNotifications, setShowNotifications] = useState(false);
   
-  // Profile & Search States
   const [profileImg, setProfileImg] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,7 +57,10 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
   const [passForm, setPassForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
   const [isChangingPass, setIsChangingPass] = useState(false);
 
-  // Fetch Student Profile Image
+  const [showOldPass, setShowOldPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+
   useEffect(() => {
     const loadProfile = async () => {
       if (user?.role === 'STUDENT' && user.username) {
@@ -74,13 +75,11 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
     loadProfile();
   }, [user]);
 
-  // --- SEARCH LOGIC ---
   const handleSearchSubmit = () => {
     const query = searchQuery.trim().toLowerCase();
     
     if (!query) return;
 
-    //  Determine which menu to search based on Role
     let accessibleMenu: any[] = [];
     if (user?.role === 'ADMIN') {
         accessibleMenu = adminMenu;
@@ -95,12 +94,8 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
     );
 
     if (match) {
-        // Navigate to the matched path
         router.push(match.path as any);
-    } 
-    // Fallback for common aliases if exact menu label isn't typed
-    else {
-        // Common aliases mapping
+    } else {
         if (query.includes('home') || query.includes('dash')) {
             router.push('/(app)');
         } else if (query.includes('work') || query.includes('homework')) {
@@ -121,15 +116,16 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
             Alert.alert("Search", `No module found for: "${searchQuery}"`);
         }
     }
-    
     setSearchQuery('');
   };
 
-  // --- PASSWORD LOGIC ---
   const handleChangePasswordClick = () => {
-    setShowProfileModal(false); // Close profile dropdown
-    setPassForm({ oldPassword: '', newPassword: '', confirmPassword: '' }); // Reset form
-    setShowPasswordModal(true); // Open Password Modal
+    setShowProfileModal(false);
+    setPassForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+    setShowOldPass(false);
+    setShowNewPass(false);
+    setShowConfirmPass(false);
+    setShowPasswordModal(true);
   };
 
   const handleSubmitPassword = async () => {
@@ -146,7 +142,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
 
       setIsChangingPass(true);
       try {
-          // Backend API call
           await authApi.post('/change-password', {
               oldPassword,
               newPassword,
@@ -166,61 +161,58 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
   return (
     <View style={[styles.navbar, isMobile && styles.navbarMobile]}>
       
-      {/* --- LEFT SECTION: Logo & Menu --- */}
-      <View style={styles.left}>
+      {/* --- LEFT SECTION --- */}
+      <View style={[styles.left, isMobile && { flex: 0, paddingRight: 8 }]}>
         <TouchableOpacity onPress={onMenuPress} style={styles.menuButton}>
           <Ionicons name="menu" size={28} color="#1F2937" />
         </TouchableOpacity>
 
-        {/* School Logo & Name */}
-        <View style={styles.brandContainer}>
-            <Image 
-                source={{ uri: 'https://www.anasolconsultancyservices.com/assets/Logo1-BPHJw_VO.png' }} 
-                style={styles.schoolLogo}
-                resizeMode="contain"
-            />
-            <Text style={styles.logoText} numberOfLines={1} ellipsizeMode="tail">
-                ANASOL TECHNO SCHOOL
-            </Text>
-        </View>
+        {isWeb && (
+            <View style={styles.brandContainer}>
+                <Image 
+                    source={{ uri: 'https://www.anasolconsultancyservices.com/assets/Logo1-BPHJw_VO.png' }} 
+                    style={styles.schoolLogo}
+                    resizeMode="contain"
+                />
+                <Text style={styles.logoText} numberOfLines={1} ellipsizeMode="tail">
+                    ANASOL TECHNO SCHOOL
+                </Text>
+            </View>
+        )}
 
-        {/* User Info (Web Only) */}
-        {!isMobile && user && (
+        {isWeb && user && (
           <View style={styles.userInfo}>
-            <Text style={styles.usernameText} numberOfLines={1}>
-              {user.username}
-            </Text>
-            <Text style={styles.roleText} numberOfLines={1}>
-              {user.role}
-            </Text>
+            <Text style={styles.usernameText} numberOfLines={1}>{user.username}</Text>
+            <Text style={styles.roleText} numberOfLines={1}>{user.role}</Text>
           </View>
         )}
       </View>
 
-      {/* --- CENTER SECTION (Search - Web Only) --- */}
-      {!isMobile && (
-        <View style={styles.center}>
-          <Ionicons
-            name="search-outline"
-            size={20}
-            color="#6B7280"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            placeholder="Search modules (e.g. Accounts, Exams)..."
-            style={styles.searchBar}
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearchSubmit}
-            returnKeyType="search"
-          />
-        </View>
-      )}
+      {/* --- CENTER SECTION (Search) --- */}
+      <View style={[
+          styles.center, 
+          isMobile && styles.centerMobile, 
+          isWeb && { marginRight: 60, marginLeft: 30, maxWidth: 700, flex: 1 } 
+      ]}>
+        <Ionicons
+          name="search-outline"
+          size={20}
+          color="#6B7280"
+          style={styles.searchIcon}
+        />
+        <TextInput
+          placeholder={isMobile ? "Search..." : "Search modules (e.g. Accounts, Exams)..."}
+          style={styles.searchBar}
+          placeholderTextColor="#9CA3AF"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onSubmitEditing={handleSearchSubmit}
+          returnKeyType="search"
+        />
+      </View>
 
       {/* --- RIGHT SECTION: Notify & Profile --- */}
       <View style={styles.right}>
-        {/* Notification Bell */}
         <TouchableOpacity 
             style={styles.iconButton} 
             onPress={() => setShowNotifications(true)}
@@ -228,14 +220,11 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
           <Ionicons name="notifications-outline" size={24} color="#374151" />
           {unreadCount > 0 && (
               <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                  </Text>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
               </View>
           )}
         </TouchableOpacity>
 
-        {/* Profile Avatar */}
         <TouchableOpacity style={styles.profileButton} onPress={() => setShowProfileModal(true)}>
           {user?.role === 'STUDENT' && profileImg ? (
              <Image source={{ uri: profileImg }} style={styles.profileImage} />
@@ -255,9 +244,9 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
         onRequestClose={() => setShowNotifications(false)}
       >
          <TouchableOpacity 
-            style={styles.modalOverlay} 
-            activeOpacity={1} 
-            onPress={() => setShowNotifications(false)}
+           style={styles.modalOverlay} 
+           activeOpacity={1} 
+           onPress={() => setShowNotifications(false)}
          >
              <TouchableWithoutFeedback>
                  <View style={[
@@ -272,7 +261,7 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
          </TouchableOpacity>
       </Modal>
 
-      {/* --- PROFILE DETAILS MODAL (DROPDOWN STYLE) --- */}
+      {/* --- PROFILE MODAL --- */}
       <Modal
         visible={showProfileModal}
         transparent={true}
@@ -286,16 +275,12 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
         >
             <TouchableWithoutFeedback>
                 <View style={styles.profileDropdown}>
-                    
-                    {/* Header with Close */}
                     <View style={styles.profileDropdownHeader}>
                         <Text style={styles.profileModalTitle}>Profile</Text>
                         <TouchableOpacity onPress={() => setShowProfileModal(false)}>
                             <Ionicons name="close" size={20} color="#6B7280" />
                         </TouchableOpacity>
                     </View>
-                    
-                    {/* User Info */}
                     <View style={styles.profileInfoContainer}>
                         <View style={styles.profileAvatarLarge}>
                              {user?.role === 'STUDENT' && profileImg ? (
@@ -311,10 +296,7 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
                             </View>
                         </View>
                     </View>
-
                     <View style={styles.divider} />
-
-                    {/* Options */}
                     <TouchableOpacity style={styles.menuOption} onPress={handleChangePasswordClick}>
                         <View style={[styles.menuIconBox, {backgroundColor: '#EFF6FF'}]}>
                             <Ionicons name="key-outline" size={18} color="#2563EB" />
@@ -322,13 +304,12 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
                         <Text style={styles.menuOptionText}>Change Password</Text>
                         <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
                     </TouchableOpacity>
-
                 </View>
             </TouchableWithoutFeedback>
         </TouchableOpacity>
       </Modal>
 
-      {/* --- CHANGE PASSWORD MODAL (New) --- */}
+      {/* --- CHANGE PASSWORD MODAL --- */}
       <Modal
         visible={showPasswordModal}
         transparent={true}
@@ -344,37 +325,55 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
                       </TouchableOpacity>
                   </View>
 
+                  {/* Old Password */}
                   <View style={styles.inputGroup}>
                       <Text style={styles.label}>Old Password</Text>
-                      <TextInput 
-                          style={styles.input} 
-                          secureTextEntry 
-                          placeholder="Enter old password"
-                          value={passForm.oldPassword}
-                          onChangeText={(t) => setPassForm({...passForm, oldPassword: t})}
-                      />
+                      <View style={styles.passwordContainer}>
+                        <TextInput 
+                            style={styles.passwordInput} 
+                            secureTextEntry={!showOldPass} 
+                            placeholder="Enter old password"
+                            value={passForm.oldPassword}
+                            onChangeText={(t) => setPassForm({...passForm, oldPassword: t})}
+                        />
+                        <TouchableOpacity onPress={() => setShowOldPass(!showOldPass)} style={styles.eyeIcon}>
+                             <Ionicons name={showOldPass ? "eye-off-outline" : "eye-outline"} size={20} color="#6B7280" />
+                        </TouchableOpacity>
+                      </View>
                   </View>
 
+                  {/* New Password */}
                   <View style={styles.inputGroup}>
                       <Text style={styles.label}>New Password</Text>
-                      <TextInput 
-                          style={styles.input} 
-                          secureTextEntry 
-                          placeholder="Enter new password"
-                          value={passForm.newPassword}
-                          onChangeText={(t) => setPassForm({...passForm, newPassword: t})}
-                      />
+                      <View style={styles.passwordContainer}>
+                        <TextInput 
+                            style={styles.passwordInput} 
+                            secureTextEntry={!showNewPass} 
+                            placeholder="Enter new password"
+                            value={passForm.newPassword}
+                            onChangeText={(t) => setPassForm({...passForm, newPassword: t})}
+                        />
+                        <TouchableOpacity onPress={() => setShowNewPass(!showNewPass)} style={styles.eyeIcon}>
+                             <Ionicons name={showNewPass ? "eye-off-outline" : "eye-outline"} size={20} color="#6B7280" />
+                        </TouchableOpacity>
+                      </View>
                   </View>
 
+                  {/* Confirm Password */}
                   <View style={styles.inputGroup}>
                       <Text style={styles.label}>Confirm New Password</Text>
-                      <TextInput 
-                          style={styles.input} 
-                          secureTextEntry 
-                          placeholder="Confirm new password"
-                          value={passForm.confirmPassword}
-                          onChangeText={(t) => setPassForm({...passForm, confirmPassword: t})}
-                      />
+                      <View style={styles.passwordContainer}>
+                        <TextInput 
+                            style={styles.passwordInput} 
+                            secureTextEntry={!showConfirmPass} 
+                            placeholder="Confirm new password"
+                            value={passForm.confirmPassword}
+                            onChangeText={(t) => setPassForm({...passForm, confirmPassword: t})}
+                        />
+                        <TouchableOpacity onPress={() => setShowConfirmPass(!showConfirmPass)} style={styles.eyeIcon}>
+                             <Ionicons name={showConfirmPass ? "eye-off-outline" : "eye-outline"} size={20} color="#6B7280" />
+                        </TouchableOpacity>
+                      </View>
                   </View>
 
                   <View style={styles.modalActions}>
@@ -384,7 +383,6 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
                       >
                           <Text style={styles.cancelText}>Cancel</Text>
                       </TouchableOpacity>
-                      
                       <TouchableOpacity 
                           style={styles.saveBtn} 
                           onPress={handleSubmitPassword}
@@ -427,56 +425,35 @@ const styles = StyleSheet.create({
   },
   
   left: { 
-      flex: 2,
       flexDirection: 'row', 
       alignItems: 'center',
-      minWidth: 0 
+      minWidth: 0,
   },
   
   menuButton: { marginRight: 12 },
   
-  brandContainer: { 
-      flexDirection: 'row', 
-      alignItems: 'center', 
-      gap: 8,
-      flexShrink: 1 
-  },
+  brandContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  schoolLogo: { width: 32, height: 32, borderRadius: 6 },
+  logoText: { fontSize: 18, fontWeight: '800', color: '#111827', letterSpacing: -0.5, flexShrink: 1 },
   
-  schoolLogo: {
-      width: 32, 
-      height: 32, 
-      borderRadius: 6 
-  },
-
-  logoText: { 
-      fontSize: 18, 
-      fontWeight: '800', 
-      color: '#111827', 
-      letterSpacing: -0.5,
-      flexShrink: 1
-  },
-  
-  userInfo: { 
-      marginLeft: 16,
-      paddingLeft: 16, 
-      borderLeftWidth: 1, 
-      borderLeftColor: '#E5E7EB', 
-      justifyContent: 'center',
-      minWidth: 100 
-  },
+  userInfo: { marginLeft: 16, paddingLeft: 16, borderLeftWidth: 1, borderLeftColor: '#E5E7EB', justifyContent: 'center', minWidth: 100 },
   usernameText: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
   roleText: { fontSize: 11, color: '#6B7280', fontWeight: '600', marginTop: 2 },
   
   center: {
-    flex: 2, 
     flexDirection: 'row', 
     alignItems: 'center', 
     backgroundColor: '#F9FAFB',
-    borderRadius: 8, 
+    borderRadius: 8,
     paddingHorizontal: 12, 
-    marginHorizontal: 16, 
     borderWidth: 1, 
     borderColor: '#E5E7EB'
+  },
+  centerMobile: {
+    flex: 1,
+    marginHorizontal: 8, 
+    marginRight: 12, 
+    borderRadius: 25, 
   },
   searchIcon: { marginRight: 8 },
   searchBar: {
@@ -484,9 +461,14 @@ const styles = StyleSheet.create({
     ...Platform.select({ web: { outlineStyle: 'none', borderWidth: 0 } as any }),
   },
   
-  right: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  right: { 
+      flexDirection: 'row',
+      alignItems: 'center', 
+      justifyContent: 'flex-end',
+      minWidth: 80 
+  },
   
-  iconButton: { padding: 8, position: 'relative', marginRight: 8 },
+  iconButton: { padding: 8, position: 'relative', marginRight: 4 },
   
   profileButton: { marginLeft: 4, padding: 2, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 20 },
   profilePicPlaceholder: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#9CA3AF', justifyContent: 'center', alignItems: 'center' },
@@ -500,48 +482,14 @@ const styles = StyleSheet.create({
   badgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold', paddingHorizontal: 2 },
 
   // --- MODAL STYLES ---
-  modalOverlay: { 
-      flex: 1, 
-      backgroundColor: 'rgba(0,0,0,0.4)', 
-      justifyContent: 'center',
-      alignItems: 'center', 
-      padding: 20
-  },
-  
-  profileOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.1)', 
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  profileOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' },
 
-  notificationDropdown: {
-      backgroundColor: '#FFF',
-      borderRadius: 12, 
-      elevation: 10, 
-      shadowColor: '#000', 
-      shadowOpacity: 0.2, 
-      shadowRadius: 10,
-      overflow: 'hidden',
-      zIndex: 1000,
-  },
-  dropdownWeb: { 
-      position: 'absolute', top: 60, right: 20, width: 380, maxHeight: 500,
-  },
-  dropdownMobile: { 
-      marginTop: 60, width: '92%', height: 400, maxHeight: '70%', 
-  },
+  notificationDropdown: { backgroundColor: '#FFF', borderRadius: 12, elevation: 10, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, overflow: 'hidden', zIndex: 1000 },
+  dropdownWeb: { position: 'absolute', top: 60, right: 20, width: 380, maxHeight: 500 },
+  dropdownMobile: { marginTop: 60, width: '92%', height: 400, maxHeight: '70%' },
 
-  profileDropdown: {
-      position: 'absolute',
-      top: 60, 
-      right: 16, 
-      width: 260, 
-      backgroundColor: '#FFF', 
-      borderRadius: 12, 
-      padding: 16, 
-      elevation: 5,
-      shadowColor: '#000', shadowOffset: {width:0, height:4}, shadowOpacity: 0.15, shadowRadius: 12,
-      borderWidth: 1, borderColor: '#F3F4F6'
-  },
+  profileDropdown: { position: 'absolute', top: 60, right: 16, width: 260, backgroundColor: '#FFF', borderRadius: 12, padding: 16, elevation: 5, shadowColor: '#000', shadowOffset: {width:0, height:4}, shadowOpacity: 0.15, shadowRadius: 12, borderWidth: 1, borderColor: '#F3F4F6' },
   profileDropdownHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   profileModalTitle: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
   
@@ -565,7 +513,10 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
   inputGroup: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6 },
-  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, backgroundColor: '#F9FAFB' },
+  
+  passwordContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, backgroundColor: '#F9FAFB', paddingRight: 10 },
+  passwordInput: { flex: 1, padding: 12, fontSize: 14, color: '#111827', ...Platform.select({ web: { outlineStyle: 'none' } as any }) },
+  eyeIcon: { padding: 4 },
   
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10, gap: 12 },
   cancelBtn: { paddingVertical: 10, paddingHorizontal: 16 },

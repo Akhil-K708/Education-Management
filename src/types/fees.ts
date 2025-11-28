@@ -23,12 +23,12 @@ export interface PaymentHistoryItem {
 
 export interface StudentFeeDetails {
   summary: FeeSummary;
-  pendingFees: FeeItem[]; // This will map from backend 'pendingFees' or 'allFees'
+  pendingFees: FeeItem[]; 
   allFees: FeeItem[];
   paymentHistory: PaymentHistoryItem[];
 }
 
-// --- ADMIN TYPES (Matches Backend DTOs) ---
+// --- ADMIN TYPES ---
 
 export interface ClassFeeStatsDTO {
   classSectionId: string;

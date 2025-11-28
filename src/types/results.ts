@@ -24,10 +24,9 @@ export interface ExamResultData {
   finalMessage: string; 
 }
 
-// --- UPDATED MARKS ENTRY TYPES (Matched with Backend) ---
+// --- UPDATED MARKS ENTRY TYPES ---
 export interface MarksEntryItem {
   studentId: string;
-  // Previous 'marksObtained' removed
   paperObtained: number;
   paperTotal: number;
   assignmentObtained: number;

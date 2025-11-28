@@ -111,7 +111,7 @@ export const getSubjectMappings = async (classSectionId: string): Promise<ClassS
   }
 };
 
-// 2. Assign a Teacher to a Subject
+//  Assign a Teacher to a Subject
 export const assignSubjectTeacher = async (data: AssignSubjectTeacherDTO) => {
   try {
     const response = await studentApi.post('/subject/assignSubjectTeacher', data);
@@ -122,7 +122,6 @@ export const assignSubjectTeacher = async (data: AssignSubjectTeacherDTO) => {
   }
 };
  
-// 🔥 FIX: Updated to use studentApi (Axios) which handles Auth Token automatically
 export const submitAdmission = async (admissionData: any, photoUri?: string) => {
   try {
     const formData = new FormData();
@@ -168,7 +167,7 @@ export const submitAdmission = async (admissionData: any, photoUri?: string) => 
   }
 };
  
-// 2. GET PENDING ADMISSIONS
+// GET PENDING ADMISSIONS
 export const getPendingAdmissions = async (): Promise<AdmissionDTO[]> => {
   try {
     const response = await studentApi.get<AdmissionDTO[]>('/admissions/pending');
@@ -179,7 +178,7 @@ export const getPendingAdmissions = async (): Promise<AdmissionDTO[]> => {
   }
 };
  
-// 3. APPROVE ADMISSION
+// APPROVE ADMISSION
 export const approveAdmission = async (admissionNumber: string, approvedBy: string) => {
   try {
     const response = await studentApi.post(`/approve/${admissionNumber}`, {
@@ -193,7 +192,7 @@ export const approveAdmission = async (admissionNumber: string, approvedBy: stri
   }
 };
  
-// 4. REJECT ADMISSION
+// REJECT ADMISSION
 export const rejectAdmission = async (admissionNumber: string) => {
   try {
     const response = await studentApi.post(`/reject/${admissionNumber}`);
@@ -305,7 +304,7 @@ export const getAllStudents = async (): Promise<StudentDTO[]> => {
   }
 };
 
-// 🔥 NEW: GET GENDER PERCENTAGE FOR DASHBOARD
+// GET GENDER PERCENTAGE FOR DASHBOARD
 export const getGenderStats = async (): Promise<any> => {
   try {
     const response = await studentApi.get('/dashboard/gender-percentage');
@@ -347,7 +346,6 @@ export const updateClassSection = async (classSectionId: string, data: ClassSect
   }
 };
  
-// 🔥 FIX: Updated to use studentApi (Axios) which handles Auth Token automatically
 export const updateStudent = async (studentId: string, studentData: any, photoUri?: string) => {
   try {
     const formData = new FormData();

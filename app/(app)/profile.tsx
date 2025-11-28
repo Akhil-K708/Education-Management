@@ -28,8 +28,6 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<StudentDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
-  // Bug Fix: Image load avvakapothe track cheyadaniki state
   const [imageError, setImageError] = useState(false);
 
   const fetchProfile = async () => {
@@ -37,7 +35,6 @@ export default function ProfileScreen() {
     try {
       const data = await getStudentProfile(user.username);
       setProfile(data);
-      // Kotha profile vachinappudu error ni reset cheyali
       setImageError(false);
     } catch (error) {
       console.error('Failed to load profile');

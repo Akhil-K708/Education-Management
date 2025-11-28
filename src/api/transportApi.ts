@@ -45,7 +45,6 @@ export const assignTransportToStudent = async (studentId: string, data: Transpor
 
 export const updateStudentTransport = async (studentId: string, data: TransportAssignRequest) => {
   try {
-    // PUT /api/student/transport/assign/{studentId}
     const response = await studentApi.put(`/transport/assign/${studentId}`, data);
     return response.data;
   } catch (error) {
@@ -54,10 +53,9 @@ export const updateStudentTransport = async (studentId: string, data: TransportA
   }
 };
 
-// NEW: Get All Routes (For Dropdown)
+// Get All Routes
 export const getAllTransportRoutes = async (): Promise<TransportRoute[]> => {
   try {
-    // Backend needs to implement this: GET /api/student/transport/routes
     const response = await studentApi.get<TransportRoute[]>('/transport/routes'); 
     return response.data;
   } catch (error) {
@@ -66,7 +64,7 @@ export const getAllTransportRoutes = async (): Promise<TransportRoute[]> => {
   }
 };
 
-// NEW: Get Students by Route
+// Get Students by Route
 export const getStudentsByRoute = async (routeId: string): Promise<any[]> => {
   try {
     const response = await studentApi.get<any[]>(`/transport/route/${routeId}/students`);

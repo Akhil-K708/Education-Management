@@ -114,10 +114,9 @@ export default function AdminAttendanceView() {
 
       if (attendanceData && attendanceData.length > 0) {
           attendanceData.forEach((rec: any) => {
-              attendanceMap[rec.studentId] = rec.status; // Status might be 'PRESENT', 'ABSENT', 'N'
+              attendanceMap[rec.studentId] = rec.status; 
               if (rec.status === 'PRESENT' || rec.status === 'P') present++;
               if (rec.status === 'ABSENT' || rec.status === 'A') absent++;
-              // If status is not 'N', we consider it marked
               if (rec.status !== 'N' && rec.status !== 'NOT_MARKED') markedCount++;
           });
       }
@@ -131,13 +130,10 @@ export default function AdminAttendanceView() {
           };
       });
 
-      // Sort by Name
       combined.sort((a: any, b: any) => a.fullName.localeCompare(b.fullName));
 
       setMergedList(combined);
       setStats({ present, absent, total: studentsData.length });
-      
-      // Consider "Marked" only if we have actual attendance records (not just empty or 'N')
       setIsMarked(markedCount > 0);
 
     } catch (e) {
@@ -159,7 +155,6 @@ export default function AdminAttendanceView() {
   // --- RENDERERS ---
 
   const renderStatCard = (title: string, value: number, color: string, icon: any) => (
-    // Only use flex: 1 on Web, on mobile allow wrap with fixed min-width
     <View style={[styles.statCard, { borderLeftColor: color }, isWeb ? { flex: 1 } : styles.statCardMobile]}>
       <View style={[styles.iconBox, { backgroundColor: color + '20' }]}>
         <Ionicons name={icon} size={20} color={color} />
@@ -172,7 +167,7 @@ export default function AdminAttendanceView() {
   );
 
   const renderStudentRow = ({ item }: { item: any }) => {
-    const status = item.attendanceStatus; // PRESENT, ABSENT, N, NOT_MARKED
+    const status = item.attendanceStatus; 
     
     let badgeStyle = styles.statusNeutral;
     let textStyle = styles.textNeutral;
@@ -187,7 +182,6 @@ export default function AdminAttendanceView() {
         textStyle = styles.textAbsent;
         displayStatus = 'A';
     } else if (status === 'N') {
-        // "N" handling -> Show as Neutral or 'N'
         badgeStyle = styles.statusNeutral;
         textStyle = styles.textNeutral;
         displayStatus = 'N'; 

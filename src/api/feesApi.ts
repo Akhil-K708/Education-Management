@@ -50,7 +50,6 @@ export interface CreateFeeRequest {
   feeName: string;
   amount: number;
   dueDate: string;
-  // 🔥 FIX: Added isExtra flag
   isExtra: boolean;
 }
 

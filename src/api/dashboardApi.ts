@@ -57,17 +57,17 @@ export const getSchoolFeed = async (): Promise<SchoolFeedItem[]> => {
   }
 };
 
-// 🔥 CREATE POST (Fixed to use studentApi for Auth)
+// CREATE POST 
 export const createSchoolFeedPost = async (postData: any, photoUri?: string) => {
   return submitFeedData('/feed/create', 'POST', postData, photoUri);
 };
 
-// 🔥 UPDATE POST
+// UPDATE POST
 export const updateSchoolFeedPost = async (id: string, postData: any, photoUri?: string) => {
   return submitFeedData(`/feed/update/${id}`, 'PUT', postData, photoUri);
 };
 
-// 🔥 DELETE POST
+// DELETE POST
 export const deleteSchoolFeedPost = async (id: string) => {
   try {
     await studentApi.delete(`/feed/delete/${id}`);
@@ -82,7 +82,7 @@ const submitFeedData = async (endpoint: string, method: 'POST' | 'PUT', jsonData
     try {
         const formData = new FormData();
 
-        // 1. Append JSON Data (Key MUST be 'data' to match other controllers)
+        // Append JSON Data 
         if (Platform.OS === "web") {
             const jsonBlob = new Blob([JSON.stringify(jsonData)], { type: "application/json" });
             formData.append("data", jsonBlob);
@@ -93,7 +93,7 @@ const submitFeedData = async (endpoint: string, method: 'POST' | 'PUT', jsonData
             } as any);
         }
 
-        // 2. Append Image File (Key 'file')
+        //  Append Image File (Key 'file')
         if (photoUri && !photoUri.startsWith('http')) {
             if (Platform.OS === "web") {
                 const blob = await fetch(photoUri).then((r) => r.blob());
@@ -107,7 +107,6 @@ const submitFeedData = async (endpoint: string, method: 'POST' | 'PUT', jsonData
             }
         }
 
-        // 3. Send Request using studentApi (Axios handles Auth)
         let response;
         const config = {
             headers: {
@@ -129,9 +128,7 @@ const submitFeedData = async (endpoint: string, method: 'POST' | 'PUT', jsonData
 };
 
 // --- DASHBOARD DATA ---
-// (Keep existing logic for student/admin data fetching)
 export const getStudentDashboardData = async (): Promise<StudentDashboardCombinedData> => {
-    // ... (same as before)
     try {
         const studentId = await getCurrentUserId();
         if (!studentId) throw new Error("User not logged in");

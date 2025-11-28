@@ -2,11 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePathname } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  Image,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { adminMenu, MenuItem, studentMenu, teacherMenu } from '../../constants/menu';
@@ -22,6 +24,9 @@ export const Sidebar = ({ onNavigate, isOpen = true }: SidebarProps) => {
   const user = state.user;
   const pathname = usePathname();
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
 
   useEffect(() => {
     if (!user) return;
@@ -33,6 +38,23 @@ export const Sidebar = ({ onNavigate, isOpen = true }: SidebarProps) => {
 
   return (
     <View style={styles.sidebar}>
+      
+      {/* --- LOGO & SCHOOL NAME HEADER (Only for Mobile) --- */}
+      {isMobile && ( 
+          <View style={[styles.brandContainer, !isOpen && styles.brandContainerCollapsed]}>
+            <Image 
+                source={{ uri: 'https://www.anasolconsultancyservices.com/assets/Logo1-BPHJw_VO.png' }} 
+                style={styles.schoolLogo}
+                resizeMode="contain"
+            />
+            {isOpen && (
+                <Text style={styles.brandText} numberOfLines={1} ellipsizeMode="tail">
+                    ANASOL TECHNO SCHOOL
+                </Text>
+            )}
+          </View>
+      )}
+
       <ScrollView style={styles.menuContainer}>
         {menu.map((item) => {
           const normalizedPath = item.path.replace('/(app)', '') || '/';
@@ -96,9 +118,38 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: '#E5E7EB',
   },
+  
+  // --- ADDED BRAND STYLES ---
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  brandContainerCollapsed: {
+    justifyContent: 'center',
+    paddingHorizontal: 0,
+  },
+  schoolLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+  },
+  brandText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#111827',
+    marginLeft: 10,
+    flex: 1,
+  },
+  
+
   menuContainer: {
     flex: 1,
-    paddingTop: 10,
+    paddingTop: 5, 
   },
   menuItem: {
     flexDirection: 'row',

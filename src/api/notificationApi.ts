@@ -1,4 +1,3 @@
-// 🔥 FIX: Import notificationApi instead of studentApi
 import { notificationApi } from './axiosInstance';
 
 export interface NotificationItem {
@@ -10,10 +9,9 @@ export interface NotificationItem {
   createdAt: string;
 }
 
-// 1. Get Unread Count
+// Get Unread Count
 export const getUnreadCount = async (userId: string): Promise<number> => {
   try {
-    // URL becomes: /api/notifications/unread-count/{id}
     const response = await notificationApi.get<number>(`/unread-count/${userId}`);
     return response.data;
   } catch (error) {
@@ -22,7 +20,7 @@ export const getUnreadCount = async (userId: string): Promise<number> => {
   }
 };
 
-// 2. Get All Notifications
+// Get All Notifications
 export const getAllNotifications = async (userId: string): Promise<NotificationItem[]> => {
   try {
     const response = await notificationApi.get<NotificationItem[]>(`/all/${userId}`);
@@ -33,7 +31,7 @@ export const getAllNotifications = async (userId: string): Promise<NotificationI
   }
 };
 
-// 3. Mark as Read
+// Mark as Read
 export const markNotificationRead = async (id: number) => {
   try {
     await notificationApi.post(`/read/${id}`);
@@ -42,7 +40,7 @@ export const markNotificationRead = async (id: number) => {
   }
 };
 
-// 4. Delete Notification
+// Delete Notification
 export const deleteNotification = async (id: number) => {
   try {
     await notificationApi.delete(`/delete/${id}`);

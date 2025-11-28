@@ -13,7 +13,7 @@ import {
 import { WebView } from 'react-native-webview';
 import { useAuth } from '../../context/AuthContext';
 
-const WS_URL = 'ws://192.168.0.245:8080/ws'; 
+const WS_URL = 'ws://192.168.0.239:8080/ws'; 
 
 const VOICE_OPTIONS = [
     { id: 'kathleen', name: 'Kathleen', gender: 'Female' },
@@ -365,15 +365,16 @@ export default function VoiceAssistant() {
                 workletNode = new AudioWorkletNode(audioCtxMic, 'pcm16-processor');
                 workletNode.port.onmessage = (e) => {
                     const chunk = e.data;
-                    pcmBuffer.push(chunk);
-                    samplesCount += chunk.length;
-                    if (samplesCount >= SAMPLES_PER_SECOND) {
-                        const merged = new Int16Array(samplesCount);
-                        let offset = 0;
-                        for (const c of pcmBuffer) { merged.set(c, offset); offset += c.length; }
-                        if (conn && conn.readyState === WebSocket.OPEN) { conn.send(merged.buffer); }
-                        pcmBuffer = []; samplesCount = 0;
-                    }
+                    if (conn && conn.readyState === WebSocket.OPEN) { conn.send(chunk);
+                    // pcmBuffer.push(chunk);
+                    // samplesCount += chunk.length;
+                    // if (samplesCount >= SAMPLES_PER_SECOND) {
+                    //     const merged = new Int16Array(samplesCount);
+                    //     let offset = 0;
+                    //     for (const c of pcmBuffer) { merged.set(c, offset); offset += c.length; }
+                    //     if (conn && conn.readyState === WebSocket.OPEN) { conn.send(merged.buffer); }
+                    //     pcmBuffer = []; samplesCount = 0;
+                    // }
                 };
                 const source = audioCtxMic.createMediaStreamSource(micStream);
                 source.connect(workletNode);

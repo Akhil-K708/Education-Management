@@ -79,7 +79,7 @@ export default function LoginScreen() {
     }
   };
 
-  // --- STEP 1: SEND OTP ---
+  // --- SEND OTP ---
   const handleSendOtp = async () => {
       if (!resetUsername) {
           Alert.alert("Error", "Please enter your Username / Student ID");
@@ -98,7 +98,7 @@ export default function LoginScreen() {
       }
   };
 
-  // --- STEP 2: RESET PASSWORD ---
+  // --- RESET PASSWORD ---
   const handleResetPassword = async () => {
       if (!otp || !newPassword || !confirmNewPassword) {
           Alert.alert("Error", "Please fill all fields");
@@ -191,7 +191,7 @@ export default function LoginScreen() {
                         placeholder="Password"
                         value={password}
                         onChangeText={setPassword}
-                        secureTextEntry={!showLoginPassword} // 🔥 Toggle Here
+                        secureTextEntry={!showLoginPassword} 
                         placeholderTextColor="#6B7280"
                     />
                     <TouchableOpacity 
@@ -245,7 +245,7 @@ export default function LoginScreen() {
                   </View>
 
                   {forgotStep === 1 ? (
-                      // STEP 1: ENTER USERNAME
+                      // ENTER USERNAME
                       <View>
                           <Text style={styles.modalSubText}>Enter your Username or Student ID. We will send an OTP to your registered email.</Text>
                           <View style={styles.modalInputWrapper}>
@@ -266,7 +266,7 @@ export default function LoginScreen() {
                           </TouchableOpacity>
                       </View>
                   ) : (
-                      // STEP 2: ENTER OTP & NEW PASSWORD
+                      // ENTER OTP & NEW PASSWORD
                       <ScrollView>
                           <Text style={styles.modalSubText}>Enter the OTP sent to your email and set a new password.</Text>
                           
@@ -286,7 +286,7 @@ export default function LoginScreen() {
                                   placeholder="New Password" 
                                   value={newPassword}
                                   onChangeText={setNewPassword}
-                                  secureTextEntry={!showNewPassword} // 🔥 Toggle Here
+                                  secureTextEntry={!showNewPassword} 
                               />
                               <TouchableOpacity 
                                   style={styles.modalEyeIcon}
@@ -306,7 +306,7 @@ export default function LoginScreen() {
                                   placeholder="Confirm New Password" 
                                   value={confirmNewPassword}
                                   onChangeText={setConfirmNewPassword}
-                                  secureTextEntry={!showConfirmPassword} // 🔥 Toggle Here
+                                  secureTextEntry={!showConfirmPassword} 
                               />
                               <TouchableOpacity 
                                   style={styles.modalEyeIcon}

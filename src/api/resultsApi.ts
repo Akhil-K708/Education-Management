@@ -1,7 +1,7 @@
 import { ExamResultData, SubjectMarksEntryRequest } from '../types/results';
 import { studentApi } from './axiosInstance';
 
-// --- COMMON: GET ALL EXAMS ---
+// --- GET ALL EXAMS ---
 export const getAvailableExams = async (): Promise<{ id: string; name: string }[]> => {
   try {
     const response = await studentApi.get<any[]>('/exams/all');
@@ -85,7 +85,7 @@ export const getSubjectMappings = async (classSectionId: string): Promise<any[]>
   }
 };
 
-// --- ADMIN: GET CLASS EXAM RESULTS (Detailed View) ---
+// --- ADMIN: GET CLASS EXAM RESULTS ---
 export const getClassExamResults = async (
   examId: string, 
   classSectionId: string

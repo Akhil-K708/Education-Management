@@ -101,7 +101,7 @@ export default function StudentsScreen() {
 
   // Full DTO State
   const [admissionForm, setAdmissionForm] = useState({
-    admissionNumber: '', // Will be shown in Edit
+    admissionNumber: '', 
     admissionDate: new Date().toISOString().split('T')[0],
     applicantName: '',
     dateOfBirth: '',
@@ -137,7 +137,6 @@ export default function StudentsScreen() {
     aadhaarCardUrl: '',
     photoUrl: '',
     aadhaarCardNumber: '',
-    // 🔥 ADDED EMAIL FIELD
     email: '' 
   });
 
@@ -240,7 +239,6 @@ export default function StudentsScreen() {
                 state: admissionForm.state,
                 pincode: admissionForm.pincode,
                 contactNumber: admissionForm.fatherContact,
-                // 🔥 Pass updated Email
                 email: admissionForm.email, 
                 emergencyContactName: admissionForm.emergencyContactName,
                 emergencyContactNumber: admissionForm.emergencyContactNumber,
@@ -254,7 +252,6 @@ export default function StudentsScreen() {
             const payload = {
                 ...admissionForm,
                 totalFee: admissionForm.totalFee ? parseFloat(admissionForm.totalFee) : null,
-                // 🔥 Pass Email in creation payload too
                 email: admissionForm.email 
             };
             await submitAdmission(payload, selectedImage || undefined);
@@ -278,7 +275,6 @@ export default function StudentsScreen() {
       
       setAdmissionForm({
           ...admissionForm,
-          // 🔥 SET ADMISSION NUMBER FOR DISPLAY
           admissionNumber: student.admissionNumber || '', 
           applicantName: student.fullName || '',
           dateOfBirth: student.dateOfBirth || new Date().toISOString().split('T')[0],
@@ -314,7 +310,6 @@ export default function StudentsScreen() {
           aadhaarCardUrl: '',
           photoUrl: student.profileImageUrl || '',
           aadhaarCardNumber: student.aadhaarNumber || '',
-          // 🔥 SET EMAIL
           email: student.email || ''
       });
       
@@ -415,7 +410,6 @@ export default function StudentsScreen() {
         aadhaarCardUrl: '',
         photoUrl: '',
         aadhaarCardNumber: '',
-        // 🔥 Reset Email
         email: ''
     }); 
     setDobDate(new Date());
@@ -742,14 +736,14 @@ export default function StudentsScreen() {
                 </TouchableOpacity>
             </View>
             
-            {/* 🔥 Show Admission Number only in Edit Mode (Read Only) */}
+            {/* Admission Number only in Edit Mode (Read Only) */}
             {isEditMode && (
                 <InputField label="Admission Number" value={admissionForm.admissionNumber} onChange={() => {}} placeholder="N/A" editable={false} />
             )}
 
             <InputField label="Applicant Name" value={admissionForm.applicantName} onChange={(t:string) => setAdmissionForm({...admissionForm, applicantName: t})} placeholder="Full Name" />
             
-            {/* 🔥 Added Email Field */}
+            {/* Email Field */}
             <InputField label="Email Address" value={admissionForm.email} onChange={(t:string) => setAdmissionForm({...admissionForm, email: t})} placeholder="student@example.com" keyboardType="email-address" />
 
             <View style={styles.formRow}>
