@@ -2,18 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    useWindowDimensions,
+    View,
 } from 'react-native';
 import { authApi } from '../../api/axiosInstance'; // 🔥 Imported Auth API
 import { getStudentProfile } from '../../api/studentService';
@@ -175,12 +175,12 @@ export const Navbar = ({ onMenuPress }: NavbarProps) => {
         {/* School Logo & Name */}
         <View style={styles.brandContainer}>
             <Image 
-                source={{ uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSFUwsr9FXcBrBcvmM2HoEh7A7oI_GUa80drA&s' }} 
+                source={{ uri: 'https://www.anasolconsultancyservices.com/assets/Logo1-BPHJw_VO.png' }} 
                 style={styles.schoolLogo}
                 resizeMode="contain"
             />
             <Text style={styles.logoText} numberOfLines={1} ellipsizeMode="tail">
-                EKASHILA HIGH SCHOOL
+                ANASOL TECHNO SCHOOL
             </Text>
         </View>
 

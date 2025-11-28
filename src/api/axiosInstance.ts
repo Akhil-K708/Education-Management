@@ -115,6 +115,6 @@ const createAxiosInstance = (baseURL: string): AxiosInstance => {
   return instance;
 };
 
-export const authApi = createAxiosInstance(`${API_HOST}/api/auth`);
+export const authApi = createAxiosInstance(`${API_HOST}/api/student/auth`);
 export const studentApi = createAxiosInstance(`${API_HOST}/api/student`);
-export const notificationApi = createAxiosInstance(`${API_HOST}/api/notifications`);
+export const notificationApi = createAxiosInstance(`${API_HOST}/api/student/notifications`);

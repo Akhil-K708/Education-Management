@@ -1,25 +1,26 @@
+import { Ionicons } from '@expo/vector-icons'; // 🔥 Imported Icons
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { authApi } from '../../src/api/axiosInstance';
 import { useAuth } from '../../src/context/AuthContext';
 
 const BACKGROUND_IMAGE_URL = 'https://as1.ftcdn.net/v2/jpg/15/97/15/88/1000_F_1597158825_9laxe2IuJ0tjrftGpEzDlz12icdYvECg.jpg';
-const SCHOOL_LOGO_URL = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSFUwsr9FXcBrBcvmM2HoEh7A7oI_GUa80drA&s';
+const SCHOOL_LOGO_URL = 'https://www.anasolconsultancyservices.com/assets/Logo1-BPHJw_VO.png';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -27,9 +28,14 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // --- VISIBILITY STATES ---
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   // --- FORGOT PASSWORD STATE ---
   const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotStep, setForgotStep] = useState<1 | 2>(1); // 1: Send OTP, 2: Reset
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1); 
   const [resetLoading, setResetLoading] = useState(false);
   
   // Forgot Password Form Data
@@ -81,10 +87,9 @@ export default function LoginScreen() {
       }
       setResetLoading(true);
       try {
-          // Backend: POST /api/auth/forgot-password { "username": "..." }
           await authApi.post('/forgot-password', { username: resetUsername });
           Alert.alert("OTP Sent", "Please check your registered email for the OTP.");
-          setForgotStep(2); // Move to next step
+          setForgotStep(2); 
       } catch (e: any) {
           const msg = e.response?.data?.message || "Failed to send OTP. Check username.";
           Alert.alert("Error", msg);
@@ -106,7 +111,6 @@ export default function LoginScreen() {
 
       setResetLoading(true);
       try {
-          // Backend: POST /api/auth/reset-password { username, otp, newPassword, confirmNewPassword }
           await authApi.post('/reset-password', {
               username: resetUsername,
               otp,
@@ -116,11 +120,7 @@ export default function LoginScreen() {
           
           Alert.alert("Success", "Password reset successfully! Please login.");
           setShowForgotModal(false);
-          setForgotStep(1);
-          setResetUsername('');
-          setOtp('');
-          setNewPassword('');
-          setConfirmNewPassword('');
+          resetFields();
           
       } catch (e: any) {
           const msg = e.response?.data?.message || "Failed to reset password. Invalid OTP.";
@@ -131,12 +131,18 @@ export default function LoginScreen() {
   };
 
   const openForgotModal = () => {
+      resetFields();
+      setShowForgotModal(true);
+  };
+
+  const resetFields = () => {
       setForgotStep(1);
       setResetUsername('');
       setOtp('');
       setNewPassword('');
       setConfirmNewPassword('');
-      setShowForgotModal(true);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
   };
   
   return (
@@ -163,27 +169,42 @@ export default function LoginScreen() {
 
             {/* Title Section */}
             <Text style={styles.welcomeText}>Welcome to</Text>
-            <Text style={styles.schoolName}>EKASHILA HIGH SCHOOL</Text>
+            <Text style={styles.schoolName}>ANASOL TECHNO SCHOOL</Text>
             <Text style={styles.subtitle}>Sign in to continue</Text>
 
             {/* Inputs */}
             <View style={styles.inputContainer}>
-                <TextInput
-                    style={styles.input}
-                    placeholder="Username / Student ID"
-                    value={username}
-                    onChangeText={setUsername}
-                    autoCapitalize="none"
-                    placeholderTextColor="#6B7280"
-                />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Password"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                    placeholderTextColor="#6B7280"
-                />
+                <View style={styles.inputWrapper}>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Username / Student ID"
+                        value={username}
+                        onChangeText={setUsername}
+                        autoCapitalize="none"
+                        placeholderTextColor="#6B7280"
+                    />
+                </View>
+                
+                <View style={styles.inputWrapper}>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Password"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showLoginPassword} // 🔥 Toggle Here
+                        placeholderTextColor="#6B7280"
+                    />
+                    <TouchableOpacity 
+                        style={styles.eyeIcon}
+                        onPress={() => setShowLoginPassword(!showLoginPassword)}
+                    >
+                        <Ionicons 
+                            name={showLoginPassword ? "eye-off" : "eye"} 
+                            size={20} 
+                            color="#6B7280" 
+                        />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Action Buttons */}
@@ -219,7 +240,7 @@ export default function LoginScreen() {
                           {forgotStep === 1 ? "Reset Password" : "Set New Password"}
                       </Text>
                       <TouchableOpacity onPress={() => setShowForgotModal(false)}>
-                          <Text style={styles.closeText}>Close</Text>
+                          <Ionicons name="close" size={24} color="#374151" />
                       </TouchableOpacity>
                   </View>
 
@@ -227,13 +248,15 @@ export default function LoginScreen() {
                       // STEP 1: ENTER USERNAME
                       <View>
                           <Text style={styles.modalSubText}>Enter your Username or Student ID. We will send an OTP to your registered email.</Text>
-                          <TextInput 
-                              style={styles.modalInput} 
-                              placeholder="Username / Student ID" 
-                              value={resetUsername}
-                              onChangeText={setResetUsername}
-                              autoCapitalize="none"
-                          />
+                          <View style={styles.modalInputWrapper}>
+                              <TextInput 
+                                  style={styles.modalInput} 
+                                  placeholder="Username / Student ID" 
+                                  value={resetUsername}
+                                  onChangeText={setResetUsername}
+                                  autoCapitalize="none"
+                              />
+                          </View>
                           <TouchableOpacity 
                               style={styles.modalBtn} 
                               onPress={handleSendOtp}
@@ -247,29 +270,55 @@ export default function LoginScreen() {
                       <ScrollView>
                           <Text style={styles.modalSubText}>Enter the OTP sent to your email and set a new password.</Text>
                           
-                          <TextInput 
-                              style={styles.modalInput} 
-                              placeholder="Enter OTP" 
-                              value={otp}
-                              onChangeText={setOtp}
-                              keyboardType="numeric"
-                          />
+                          <View style={styles.modalInputWrapper}>
+                              <TextInput 
+                                  style={styles.modalInput} 
+                                  placeholder="Enter OTP" 
+                                  value={otp}
+                                  onChangeText={setOtp}
+                                  keyboardType="numeric"
+                              />
+                          </View>
                           
-                          <TextInput 
-                              style={styles.modalInput} 
-                              placeholder="New Password" 
-                              value={newPassword}
-                              onChangeText={setNewPassword}
-                              secureTextEntry
-                          />
+                          <View style={styles.modalInputWrapper}>
+                              <TextInput 
+                                  style={[styles.modalInput, {paddingRight: 40}]} 
+                                  placeholder="New Password" 
+                                  value={newPassword}
+                                  onChangeText={setNewPassword}
+                                  secureTextEntry={!showNewPassword} // 🔥 Toggle Here
+                              />
+                              <TouchableOpacity 
+                                  style={styles.modalEyeIcon}
+                                  onPress={() => setShowNewPassword(!showNewPassword)}
+                              >
+                                  <Ionicons 
+                                      name={showNewPassword ? "eye-off" : "eye"} 
+                                      size={20} 
+                                      color="#6B7280" 
+                                  />
+                              </TouchableOpacity>
+                          </View>
 
-                          <TextInput 
-                              style={styles.modalInput} 
-                              placeholder="Confirm New Password" 
-                              value={confirmNewPassword}
-                              onChangeText={setConfirmNewPassword}
-                              secureTextEntry
-                          />
+                          <View style={styles.modalInputWrapper}>
+                              <TextInput 
+                                  style={[styles.modalInput, {paddingRight: 40}]} 
+                                  placeholder="Confirm New Password" 
+                                  value={confirmNewPassword}
+                                  onChangeText={setConfirmNewPassword}
+                                  secureTextEntry={!showConfirmPassword} // 🔥 Toggle Here
+                              />
+                              <TouchableOpacity 
+                                  style={styles.modalEyeIcon}
+                                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                              >
+                                  <Ionicons 
+                                      name={showConfirmPassword ? "eye-off" : "eye"} 
+                                      size={20} 
+                                      color="#6B7280" 
+                                  />
+                              </TouchableOpacity>
+                          </View>
 
                           <View style={styles.btnRow}>
                               <TouchableOpacity 
@@ -280,7 +329,7 @@ export default function LoginScreen() {
                               </TouchableOpacity>
 
                               <TouchableOpacity 
-                                  style={[styles.modalBtn, {flex: 1}]} 
+                                  style={[styles.modalBtn, {flex: 1, marginTop: 0}]} 
                                   onPress={handleResetPassword}
                                   disabled={resetLoading}
                               >
@@ -390,6 +439,10 @@ const styles = StyleSheet.create({
       gap: 16,
       marginBottom: 24
   },
+  inputWrapper: {
+      position: 'relative',
+      width: '100%'
+  },
   input: {
     backgroundColor: '#F9FAFB',
     paddingVertical: 14,
@@ -399,6 +452,13 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     fontSize: 16,
     color: '#1F2937',
+    width: '100%'
+  },
+  eyeIcon: {
+      position: 'absolute',
+      right: 16,
+      top: 14,
+      zIndex: 1
   },
 
   button: {
@@ -456,15 +516,15 @@ const styles = StyleSheet.create({
       fontWeight: 'bold',
       color: '#111827'
   },
-  closeText: {
-      color: '#6B7280',
-      fontWeight: '600'
-  },
   modalSubText: {
       fontSize: 14,
       color: '#6B7280',
       marginBottom: 20,
       lineHeight: 20
+  },
+  modalInputWrapper: {
+      position: 'relative',
+      marginBottom: 16
   },
   modalInput: {
       borderWidth: 1,
@@ -472,8 +532,14 @@ const styles = StyleSheet.create({
       borderRadius: 8,
       padding: 12,
       fontSize: 16,
-      marginBottom: 16,
-      backgroundColor: '#F9FAFB'
+      backgroundColor: '#F9FAFB',
+      width: '100%'
+  },
+  modalEyeIcon: {
+      position: 'absolute',
+      right: 12,
+      top: 12,
+      zIndex: 1
   },
   modalBtn: {
       backgroundColor: '#2563EB',
