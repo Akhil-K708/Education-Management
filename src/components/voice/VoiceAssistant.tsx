@@ -13,7 +13,7 @@ import {
 import { WebView } from 'react-native-webview';
 import { useAuth } from '../../context/AuthContext';
 
-const WS_URL = 'ws://192.168.0.239:8080/ws'; 
+const WS_URL = 'ws://192.168.0.225:8080/ws'; 
 
 const VOICE_OPTIONS = [
     { id: 'kathleen', name: 'Kathleen', gender: 'Female' },
@@ -34,6 +34,28 @@ const LANGUAGES = [
     { id: 'en-IN', label: 'English (IN)' },
     { id: 'te-IN', label: 'Telugu' },
 ];
+
+// --- PCM PROCESSOR CODE (Common for Web & Mobile) ---
+const PROCESSOR_CODE = `
+class PCM16Processor extends AudioWorkletProcessor {
+    process(inputs, outputs, parameters) {
+        const input = inputs[0];
+        if (input.length > 0) {
+            const inputChannel = input[0];
+            const bufferLength = inputChannel.length;
+            const outputBuffer = new Int16Array(bufferLength);
+            for (let i = 0; i < bufferLength; i++) {
+                let sample = inputChannel[i];
+                sample = Math.max(-1, Math.min(1, sample));
+                outputBuffer[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+            }
+            this.port.postMessage(outputBuffer);
+        }
+        return true;
+    }
+}
+registerProcessor('pcm16-processor', PCM16Processor);
+`;
 
 export default function VoiceAssistant() {
   const { state } = useAuth();
@@ -56,8 +78,13 @@ export default function VoiceAssistant() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnims = useRef([1, 2, 3, 4, 5].map(() => new Animated.Value(10))).current;
 
-  // WebView Ref
+  // Refs for Web Logic
   const webViewRef = useRef<WebView>(null);
+  const webSocketRef = useRef<WebSocket | null>(null);
+  const audioCtxMicRef = useRef<any>(null);
+  const workletNodeRef = useRef<any>(null);
+  const micStreamRef = useRef<any>(null);
+  const audioCtxPlayRef = useRef<any>(null); 
 
   // --- ANIMATIONS ---
   const startPulseAnimation = () => {
@@ -95,7 +122,6 @@ export default function VoiceAssistant() {
       }
     })();
 
-    // Show Help Popup Logic
     const showTimer = setTimeout(() => {
         setShowHelp(true);
         Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
@@ -113,13 +139,16 @@ export default function VoiceAssistant() {
         if (sound) {
             sound.unloadAsync();
         }
+        // Cleanup Web Logic on unmount
+        if (Platform.OS === 'web') {
+            handleWebDisconnect();
+        }
     };
   }, [sound]);
 
   // --- HANDLE PLAY SAMPLE ---
   const handlePlaySample = async (voiceId: string) => {
       try {
-          // If already playing this voice, stop it
           if (playingVoiceId === voiceId && sound) {
               await sound.stopAsync();
               await sound.unloadAsync();
@@ -127,24 +156,15 @@ export default function VoiceAssistant() {
               setPlayingVoiceId(null);
               return;
           }
-
-          // Stop previous sound if any
           if (sound) {
               await sound.stopAsync();
               await sound.unloadAsync();
           }
-
-          // Load and play new sound
           const source = VOICE_SAMPLES[voiceId];
-          if (!source) {
-              console.warn("Audio file not found for", voiceId);
-              return;
-          }
-
+          if (!source) return;
           const { sound: newSound } = await Audio.Sound.createAsync(source);
           setSound(newSound);
           setPlayingVoiceId(voiceId);
-
           newSound.setOnPlaybackStatusUpdate((status) => {
               if (status.isLoaded && status.didJustFinish) {
                   setPlayingVoiceId(null);
@@ -152,38 +172,206 @@ export default function VoiceAssistant() {
                   setSound(null);
               }
           });
-
           await newSound.playAsync();
+      } catch (error) { console.error("Failed to play sample:", error); }
+  };
 
-      } catch (error) {
-          console.error("Failed to play sample:", error);
+  // WEB NATIVE LOGIC (Bypasses WebView on Web Platform)
+  
+  const handleWebConnect = () => {
+      if (webSocketRef.current) webSocketRef.current.close();
+
+      setConnectionStatus('CONNECTING');
+      setStatusText("Connecting...");
+      setShowHelp(false);
+
+      const username = user?.username || 'Guest';
+      const url = `${WS_URL}?name=${encodeURIComponent(username)}`;
+      
+      console.log("[Web] Connecting to:", url);
+      const ws = new WebSocket(url);
+      ws.binaryType = 'arraybuffer';
+      webSocketRef.current = ws;
+
+      ws.onopen = () => {
+          console.log("[Web] WS Connected");
+          setConnectionStatus('CONNECTED');
+          setStatusText("Ready");
+          
+          // Handshake
+          ws.send(JSON.stringify({
+              username: username,
+              audio_chunk: "STREAM_STARTING",
+              language: selectedLang,
+              stream_id: "stream_" + Date.now(),
+              session_id: "sess_" + Date.now(),
+              audio_option: selectedVoice,
+              options: {}
+          }));
+      };
+
+      ws.onclose = (e) => {
+          console.log("[Web] WS Closed", e.code);
+          setConnectionStatus('DISCONNECTED');
+          setStatusText("Disconnected");
+          setIsListening(false);
+          stopPulseAnimation();
+          handleWebStopMic();
+      };
+
+      ws.onerror = (e) => {
+          console.error("[Web] WS Error", e);
+          setStatusText("Connection Failed");
+          setConnectionStatus('DISCONNECTED');
+      };
+
+      ws.onmessage = async (evt) => {
+          // Handle Incoming Audio for Playback
+          try {
+              if (evt.data instanceof ArrayBuffer) return;
+              const msg = JSON.parse(evt.data);
+              
+              if (msg.audio_bytes) {
+                  // Playback Logic
+                  if (!audioCtxPlayRef.current) {
+                      audioCtxPlayRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+                  }
+                  if (audioCtxPlayRef.current.state === 'suspended') {
+                      await audioCtxPlayRef.current.resume();
+                  }
+
+                  const sampleRate = msg.sample_rate || 16000;
+                  const channels = msg.channels || 1;
+                  
+                  // Decode Base64
+                  const binaryString = atob(msg.audio_bytes);
+                  const len = binaryString.length;
+                  const bytes = new Uint8Array(len);
+                  for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+                  const int16 = new Int16Array(bytes.buffer);
+                  const float32 = new Float32Array(int16.length);
+                  for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+
+                  // Play Audio
+                  playWebAudio(float32, sampleRate, channels);
+              }
+          } catch(e) {
+              console.log("Web Msg Parse Error", e);
+          }
+      };
+  };
+
+  const playWebAudio = (float32: Float32Array, sampleRate: number, channels: number) => {
+      const ctx = audioCtxPlayRef.current;
+      setStatusText("Speaking...");
+      startWaveAnimation();
+
+      const buffer = ctx.createBuffer(channels, float32.length, sampleRate);
+      buffer.copyToChannel(float32, 0);
+      
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.onended = () => {
+          setStatusText("Ready");
+          stopWaveAnimation();
+      };
+      source.start(0);
+  };
+
+  const handleWebStartMic = async () => {
+      try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          micStreamRef.current = stream;
+
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+          audioCtxMicRef.current = audioCtx;
+          
+          if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+          const blob = new Blob([PROCESSOR_CODE], {type: 'application/javascript'});
+          const url = URL.createObjectURL(blob);
+          await audioCtx.audioWorklet.addModule(url);
+
+          const worklet = new AudioWorkletNode(audioCtx, 'pcm16-processor');
+          workletNodeRef.current = worklet;
+
+          worklet.port.onmessage = (e) => {
+              const chunk = e.data; 
+              if (webSocketRef.current && webSocketRef.current.readyState === WebSocket.OPEN) {
+                  webSocketRef.current.send(chunk.buffer);
+              }
+          };
+
+          const source = audioCtx.createMediaStreamSource(stream);
+          source.connect(worklet);
+          
+          setIsListening(true);
+          startPulseAnimation();
+          setStatusText("Listening...");
+
+      } catch(e) {
+          console.error("Web Mic Error", e);
+          alert("Could not access microphone.");
       }
   };
 
-  // --- ACTIONS SENT TO WEBVIEW ---
+  const handleWebStopMic = () => {
+      if (micStreamRef.current) micStreamRef.current.getTracks().forEach((t: any) => t.stop());
+      if (workletNodeRef.current) workletNodeRef.current.disconnect();
+      if (audioCtxMicRef.current) audioCtxMicRef.current.close();
+      
+      if (webSocketRef.current && webSocketRef.current.readyState === WebSocket.OPEN) {
+          webSocketRef.current.send("STOP_AUDIO");
+      }
+
+      micStreamRef.current = null;
+      workletNodeRef.current = null;
+      audioCtxMicRef.current = null;
+
+      setIsListening(false);
+      stopPulseAnimation();
+      setStatusText("Processing...");
+  };
+
+  const handleWebDisconnect = () => {
+      if (webSocketRef.current) {
+          if (webSocketRef.current.readyState === WebSocket.OPEN) {
+              webSocketRef.current.send("CLOSE_CONNECTION");
+          }
+          webSocketRef.current.close();
+      }
+      handleWebStopMic();
+      setConnectionStatus('DISCONNECTED');
+  };
+ 
+  //  MOBILE LOGIC (Using WebView Bridge)
+ 
   const handleConnect = () => {
-    setConnectionStatus('CONNECTING');
-    setStatusText("Connecting...");
-    setShowHelp(false);
-    
-    const initData = {
-        type: 'INIT_CONFIG',
-        payload: {
-            username: user?.username || 'Guest',
-            language: selectedLang,
-            audioOption: selectedVoice,
-            wsUrl: WS_URL
-        }
-    };
-    webViewRef.current?.postMessage(JSON.stringify(initData));
+    if (Platform.OS === 'web') {
+        handleWebConnect();
+    } else {
+        setConnectionStatus('CONNECTING');
+        setStatusText("Connecting...");
+        setShowHelp(false);
+        const initData = {
+            type: 'INIT_CONFIG',
+            payload: { username: user?.username || 'Guest', language: selectedLang, audioOption: selectedVoice, wsUrl: WS_URL }
+        };
+        webViewRef.current?.postMessage(JSON.stringify(initData));
+    }
   };
 
   const handleDisconnect = () => {
-    webViewRef.current?.postMessage(JSON.stringify({ type: 'DISCONNECT' }));
-    setConnectionStatus('DISCONNECTED');
-    setIsListening(false);
-    stopPulseAnimation();
-    stopWaveAnimation();
+    if (Platform.OS === 'web') {
+        handleWebDisconnect();
+    } else {
+        webViewRef.current?.postMessage(JSON.stringify({ type: 'DISCONNECT' }));
+        setConnectionStatus('DISCONNECTED');
+        setIsListening(false);
+        stopPulseAnimation();
+        stopWaveAnimation();
+    }
     if (sound) { sound.stopAsync(); setPlayingVoiceId(null); }
   };
 
@@ -193,24 +381,152 @@ export default function VoiceAssistant() {
         return;
     }
 
-    if (isListening) {
-        webViewRef.current?.postMessage(JSON.stringify({ type: 'STOP_MIC' }));
-        setIsListening(false);
-        stopPulseAnimation();
-        setStatusText("Processing...");
+    if (Platform.OS === 'web') {
+        if (isListening) handleWebStopMic();
+        else handleWebStartMic();
     } else {
-        webViewRef.current?.postMessage(JSON.stringify({ type: 'START_MIC' }));
-        setIsListening(true);
-        startPulseAnimation();
-        setStatusText("Listening...");
+        if (isListening) {
+            webViewRef.current?.postMessage(JSON.stringify({ type: 'STOP_MIC' }));
+            setIsListening(false);
+            stopPulseAnimation();
+            setStatusText("Processing...");
+        } else {
+            webViewRef.current?.postMessage(JSON.stringify({ type: 'START_MIC' }));
+            setIsListening(true);
+            startPulseAnimation();
+            setStatusText("Listening...");
+        }
     }
   };
 
-  // --- MESSAGES FROM WEBVIEW ---
+  // --- MOBILE INJECTED JS ---
+  const injectedJavaScript = `
+    (function() {
+        let conn = null;
+        let audioCtxMic = null;
+        let audioCtxPlay = null;
+        let workletNode = null;
+        let micStream = null;
+        let audioQueue = [];
+        let isPlaying = false;
+        
+        const processorCode = \`${PROCESSOR_CODE}\`;
+
+        function sendToRN(type, message = '') {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
+        }
+
+        function connectWS(config) {
+            try {
+                if (conn) conn.close();
+                const url = config.wsUrl + '?name=' + encodeURIComponent(config.username);
+                conn = new WebSocket(url);
+                conn.binaryType = 'arraybuffer';
+                
+                conn.onopen = () => {
+                    sendToRN('WS_CONNECTED');
+                    conn.send(JSON.stringify({
+                        username: config.username,
+                        audio_chunk: "STREAM_STARTING",
+                        language: config.language,
+                        stream_id: "stream_" + Date.now(),
+                        session_id: "sess_" + Date.now(),
+                        audio_option: config.audioOption,
+                        options: {}
+                    }));
+                };
+                
+                conn.onclose = (e) => sendToRN('WS_DISCONNECTED', 'Code: ' + e.code);
+                conn.onerror = (e) => { sendToRN('ERROR', 'WS Error'); };
+                conn.onmessage = handleIncomingAudio;
+            } catch (err) { sendToRN('ERROR', 'WS Exception: ' + err.message); }
+        }
+
+        function handleIncomingAudio(evt) {
+            try {
+                if (evt.data instanceof ArrayBuffer) return;
+                const msg = JSON.parse(evt.data);
+                if (msg.audio_bytes) {
+                    if (!audioCtxPlay) audioCtxPlay = new (window.AudioContext || window.webkitAudioContext)();
+                    if (audioCtxPlay.state === 'suspended') audioCtxPlay.resume();
+                    
+                    const binaryString = atob(msg.audio_bytes);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+                    const int16 = new Int16Array(bytes.buffer);
+                    const float32 = new Float32Array(int16.length);
+                    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+                    
+                    audioQueue.push({ buffer: float32, sampleRate: msg.sample_rate || 16000, channels: msg.channels || 1 });
+                    processAudioQueue();
+                }
+            } catch(e) {}
+        }
+
+        function processAudioQueue() {
+            if (isPlaying || audioQueue.length === 0) return;
+            isPlaying = true;
+            sendToRN('PLAYBACK_START');
+            const item = audioQueue.shift();
+            
+            const audioBuffer = audioCtxPlay.createBuffer(item.channels, item.buffer.length, item.sampleRate);
+            audioBuffer.copyToChannel(item.buffer, 0);
+            
+            const source = audioCtxPlay.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioCtxPlay.destination);
+            source.onended = () => {
+                isPlaying = false;
+                if (audioQueue.length === 0) sendToRN('PLAYBACK_END');
+                processAudioQueue();
+            };
+            source.start(0);
+        }
+
+        async function startMic() {
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioCtxMic = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                if (audioCtxMic.state === 'suspended') await audioCtxMic.resume();
+                
+                const blob = new Blob([processorCode], {type: 'application/javascript'});
+                const url = URL.createObjectURL(blob);
+                await audioCtxMic.audioWorklet.addModule(url);
+                
+                workletNode = new AudioWorkletNode(audioCtxMic, 'pcm16-processor');
+                workletNode.port.onmessage = (e) => {
+                    if (conn && conn.readyState === WebSocket.OPEN) { conn.send(e.data.buffer); }
+                };
+                
+                const source = audioCtxMic.createMediaStreamSource(micStream);
+                source.connect(workletNode);
+                sendToRN('LOG', 'Mic Started');
+            } catch(e) { sendToRN('ERROR', 'Mic Error: ' + e.message); }
+        }
+
+        function stopMic() {
+            if (micStream) micStream.getTracks().forEach(t => t.stop());
+            if (workletNode) workletNode.disconnect();
+            if (audioCtxMic) audioCtxMic.close();
+            if (conn && conn.readyState === WebSocket.OPEN) { conn.send("STOP_AUDIO"); }
+            micStream = null; workletNode = null; audioCtxMic = null;
+            sendToRN('LOG', 'Mic Stopped');
+        }
+
+        document.addEventListener('message', function(event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'INIT_CONFIG') connectWS(data.payload);
+            if (data.type === 'START_MIC') startMic();
+            if (data.type === 'STOP_MIC') stopMic();
+            if (data.type === 'DISCONNECT') { if(conn) { conn.send("CLOSE_CONNECTION"); conn.close(); } }
+        });
+    })();
+  `;
+
+  // --- MESSAGES FROM MOBILE WEBVIEW ---
   const handleWebViewMessage = (event: any) => {
       try {
           const data = JSON.parse(event.nativeEvent.data);
-          
           switch(data.type) {
               case 'WS_CONNECTED':
                   setConnectionStatus('CONNECTED');
@@ -230,176 +546,15 @@ export default function VoiceAssistant() {
                   setStatusText("Ready");
                   stopWaveAnimation();
                   break;
-              case 'LOG':
-                  console.log(`[WebView] ${data.message}`);
-                  break;
               case 'ERROR':
-                  console.error(`[WebView Error] ${data.message}`);
                   if (data.message && data.message.includes("WS")) {
                       setStatusText("Connection Failed");
                       setConnectionStatus('DISCONNECTED');
                   }
                   break;
           }
-      } catch (e) {
-          console.error("Failed to parse WebView message", e);
-      }
+      } catch (e) {}
   };
-
-  // --- INJECTED JAVASCRIPT ---  Main logic
-  const injectedJavaScript = `
-    (function() {
-        let conn = null;
-        let audioCtxMic = null;
-        let audioCtxPlay = null;
-        let workletNode = null;
-        let micStream = null;
-        let audioQueue = [];
-        let isPlaying = false;
-        
-        const SAMPLES_PER_SECOND = 16000;
-        let pcmBuffer = [];
-        let samplesCount = 0;
-
-        const processorCode = \`
-            class PCM16Processor extends AudioWorkletProcessor {
-                process(inputs, outputs, parameters) {
-                    const input = inputs[0];
-                    if (input.length > 0) {
-                        const inputChannel = input[0];
-                        const bufferLength = inputChannel.length;
-                        const outputBuffer = new Int16Array(bufferLength);
-                        for (let i = 0; i < bufferLength; i++) {
-                            let sample = inputChannel[i];
-                            sample = Math.max(-1, Math.min(1, sample));
-                            outputBuffer[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-                        }
-                        this.port.postMessage(outputBuffer);
-                    }
-                    return true;
-                }
-            }
-            registerProcessor('pcm16-processor', PCM16Processor);
-        \`;
-
-        function sendToRN(type, message = '') {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type, message }));
-        }
-
-        function connectWS(config) {
-            try {
-                if (conn) conn.close();
-                const url = config.wsUrl + '?name=' + encodeURIComponent(config.username);
-                sendToRN('LOG', 'Connecting to ' + url);
-                conn = new WebSocket(url);
-                conn.binaryType = 'arraybuffer';
-                conn.onopen = () => {
-                    sendToRN('WS_CONNECTED');
-                    conn.send(JSON.stringify({
-                        username: config.username,
-                        audio_chunk: "STREAM_STARTING",
-                        language: config.language,
-                        stream_id: "stream_" + Date.now(),
-                        session_id: "sess_" + Date.now(),
-                        audio_option: config.audioOption,
-                        options: {}
-                    }));
-                };
-                conn.onclose = (e) => sendToRN('WS_DISCONNECTED', 'Code: ' + e.code);
-                conn.onerror = (e) => { sendToRN('ERROR', 'WS Error'); };
-                conn.onmessage = handleIncomingAudio;
-            } catch (err) {
-                sendToRN('ERROR', 'WS Exception: ' + err.message);
-            }
-        }
-
-        function handleIncomingAudio(evt) {
-            try {
-                if (evt.data instanceof ArrayBuffer) return;
-                const msg = JSON.parse(evt.data);
-                if (msg.audio_bytes) {
-                    if (!audioCtxPlay) audioCtxPlay = new (window.AudioContext || window.webkitAudioContext)();
-                    if (audioCtxPlay.state === 'suspended') audioCtxPlay.resume();
-                    const binaryString = atob(msg.audio_bytes);
-                    const len = binaryString.length;
-                    const bytes = new Uint8Array(len);
-                    for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-                    const int16 = new Int16Array(bytes.buffer);
-                    const float32 = new Float32Array(int16.length);
-                    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
-                    audioQueue.push({ buffer: float32, sampleRate: msg.sample_rate || 16000 });
-                    processAudioQueue();
-                }
-            } catch(e) { sendToRN('LOG', 'Msg Parse Error: ' + e.message); }
-        }
-
-        function processAudioQueue() {
-            if (isPlaying || audioQueue.length === 0) return;
-            isPlaying = true;
-            sendToRN('PLAYBACK_START');
-            const item = audioQueue.shift();
-            if (audioCtxPlay.state === 'suspended') audioCtxPlay.resume();
-            const audioBuffer = audioCtxPlay.createBuffer(1, item.buffer.length, item.sampleRate);
-            audioBuffer.copyToChannel(item.buffer, 0);
-            const source = audioCtxPlay.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(audioCtxPlay.destination);
-            source.onended = () => {
-                isPlaying = false;
-                if (audioQueue.length === 0) sendToRN('PLAYBACK_END');
-                processAudioQueue();
-            };
-            source.start(0);
-        }
-
-        async function startMic() {
-            try {
-                micStream = await navigator.mediaDevices.getUserMedia({ audio: {
-                    sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true
-                }});
-                audioCtxMic = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-                if (audioCtxMic.state === 'suspended') await audioCtxMic.resume();
-                const blob = new Blob([processorCode], {type: 'application/javascript'});
-                const url = URL.createObjectURL(blob);
-                await audioCtxMic.audioWorklet.addModule(url);
-                workletNode = new AudioWorkletNode(audioCtxMic, 'pcm16-processor');
-                workletNode.port.onmessage = (e) => {
-                    const chunk = e.data;
-                    if (conn && conn.readyState === WebSocket.OPEN) { conn.send(chunk);
-                    // pcmBuffer.push(chunk);
-                    // samplesCount += chunk.length;
-                    // if (samplesCount >= SAMPLES_PER_SECOND) {
-                    //     const merged = new Int16Array(samplesCount);
-                    //     let offset = 0;
-                    //     for (const c of pcmBuffer) { merged.set(c, offset); offset += c.length; }
-                    //     if (conn && conn.readyState === WebSocket.OPEN) { conn.send(merged.buffer); }
-                    //     pcmBuffer = []; samplesCount = 0;
-                    // }
-                };
-                const source = audioCtxMic.createMediaStreamSource(micStream);
-                source.connect(workletNode);
-                sendToRN('LOG', 'Mic Started');
-            } catch(e) { sendToRN('ERROR', 'Mic Access Failed: ' + e.message); }
-        }
-
-        function stopMic() {
-            if (micStream) micStream.getTracks().forEach(t => t.stop());
-            if (workletNode) workletNode.disconnect();
-            if (audioCtxMic) audioCtxMic.close();
-            if (conn && conn.readyState === WebSocket.OPEN) { conn.send("STOP_AUDIO"); }
-            micStream = null; workletNode = null; audioCtxMic = null; pcmBuffer = []; samplesCount = 0;
-            sendToRN('LOG', 'Mic Stopped');
-        }
-
-        document.addEventListener('message', function(event) {
-            const data = JSON.parse(event.data);
-            if (data.type === 'INIT_CONFIG') connectWS(data.payload);
-            if (data.type === 'START_MIC') startMic();
-            if (data.type === 'STOP_MIC') stopMic();
-            if (data.type === 'DISCONNECT') { if (conn) { conn.send("CLOSE_CONNECTION"); conn.close(); } }
-        });
-    })();
-  `;
 
   // --- RENDER UI ---
   const renderSettings = () => (
@@ -412,27 +567,13 @@ export default function VoiceAssistant() {
                       style={[styles.voiceCard, selectedVoice === v.id && styles.voiceCardActive]}
                       onPress={() => setSelectedVoice(v.id)}
                   >
-                      {/* Gender Icon */}
                       <View style={[styles.voiceIcon, selectedVoice === v.id ? {backgroundColor: '#2563EB'} : {backgroundColor: '#E5E7EB'}]}>
                           <Ionicons name={v.gender === 'Male' ? 'man' : 'woman'} size={20} color={selectedVoice === v.id ? '#FFF' : '#6B7280'} />
                       </View>
-                      
-                      {/* Name */}
                       <Text style={[styles.voiceName, selectedVoice === v.id && styles.voiceNameActive]}>{v.name}</Text>
-                      
-                      {/* Play Sample Button (Doesn't select, just plays) */}
-                      <TouchableOpacity 
-                        style={styles.playSampleBtn}
-                        onPress={() => handlePlaySample(v.id)}
-                      >
-                          <Ionicons 
-                            name={playingVoiceId === v.id ? "stop-circle" : "play-circle"} 
-                            size={24} 
-                            color={playingVoiceId === v.id ? "#EF4444" : "#2563EB"} 
-                          />
+                      <TouchableOpacity style={styles.playSampleBtn} onPress={() => handlePlaySample(v.id)}>
+                          <Ionicons name={playingVoiceId === v.id ? "stop-circle" : "play-circle"} size={24} color={playingVoiceId === v.id ? "#EF4444" : "#2563EB"} />
                       </TouchableOpacity>
-
-                      {/* Selection Checkmark */}
                       {selectedVoice === v.id && <View style={styles.checkBadge}><Ionicons name="checkmark" size={10} color="#FFF" /></View>}
                   </TouchableOpacity>
               ))}
@@ -440,11 +581,7 @@ export default function VoiceAssistant() {
           <Text style={styles.sectionHeader}>Language</Text>
           <View style={styles.chipContainer}>
               {LANGUAGES.map((l) => (
-                  <TouchableOpacity 
-                      key={l.id} 
-                      style={[styles.langChip, selectedLang === l.id && styles.langChipActive]}
-                      onPress={() => setSelectedLang(l.id)}
-                  >
+                  <TouchableOpacity key={l.id} style={[styles.langChip, selectedLang === l.id && styles.langChipActive]} onPress={() => setSelectedLang(l.id)}>
                       <Text style={[styles.langText, selectedLang === l.id && styles.langTextActive]}>{l.label}</Text>
                   </TouchableOpacity>
               ))}
@@ -527,23 +664,29 @@ export default function VoiceAssistant() {
               </View>
             </View>
             
-            <View style={{ height: 0, width: 0, opacity: 0 }}>
-                <WebView
-                    ref={webViewRef}
-                    originWhitelist={['*']}
-                    source={{ html: `<html><body></body></html>`, baseUrl: 'http://localhost/' }}
-                    injectedJavaScript={injectedJavaScript}
-                    onMessage={handleWebViewMessage}
-                    javaScriptEnabled={true}
-                    domStorageEnabled={true}
-                    mediaPlaybackRequiresUserAction={false}
-                    allowsInlineMediaPlayback={true}
-                    mediaCapturePermissionGrantType="grant" 
-                    mixedContentMode="always" 
-                    allowFileAccess={true}
-                    allowUniversalAccessFromFileURLs={true}
-                />
-            </View>
+            {/* CONDITIONAL RENDERING 
+               Only render WebView on Mobile.
+               On Web, we use native JS logic above.
+            */}
+            {Platform.OS !== 'web' && (
+                <View style={{ height: 0, width: 0, opacity: 0 }}>
+                    <WebView
+                        ref={webViewRef}
+                        originWhitelist={['*']}
+                        source={{ html: `<html><body></body></html>`, baseUrl: 'http://localhost/' }}
+                        injectedJavaScript={injectedJavaScript}
+                        onMessage={handleWebViewMessage}
+                        javaScriptEnabled={true}
+                        domStorageEnabled={true}
+                        mediaPlaybackRequiresUserAction={false}
+                        allowsInlineMediaPlayback={true}
+                        mediaCapturePermissionGrantType="grant" 
+                        mixedContentMode="always" 
+                        allowFileAccess={true}
+                        allowUniversalAccessFromFileURLs={true}
+                    />
+                </View>
+            )}
 
             {showSettings ? renderSettings() : renderMain()}
           </View>
@@ -559,8 +702,24 @@ const styles = StyleSheet.create({
   tooltipBubble: { backgroundColor: '#1F2937', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, elevation: 4, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, position: 'relative' },
   tooltipText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
   tooltipArrow: { position: 'absolute', bottom: -8, right: 20, width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#1F2937' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, minHeight: 450 },
+  overlay: { 
+      flex: 1, 
+      backgroundColor: 'rgba(0,0,0,0.4)', 
+      justifyContent: 'flex-end',
+      ...Platform.select({
+          web: { alignItems: 'center', justifyContent: 'center' } as any
+      })
+  },
+  sheet: { 
+      backgroundColor: '#FFF', 
+      borderTopLeftRadius: 24, 
+      borderTopRightRadius: 24, 
+      padding: 20, 
+      minHeight: 450,
+      ...Platform.select({
+          web: { width: 400, borderRadius: 24, maxHeight: '80%' } as any
+      })
+  },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 12 },
   title: { fontSize: 20, fontWeight: 'bold', color: '#111' },
   iconBtn: { padding: 4, backgroundColor: '#F3F4F6', borderRadius: 20 },
