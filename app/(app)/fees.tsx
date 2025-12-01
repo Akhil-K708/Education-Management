@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,10 @@ import {
   useWindowDimensions,
   View
 } from 'react-native';
+// --- PRINTING IMPORTS ---
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+
 import { studentApi } from '../../src/api/axiosInstance';
 import { getStudentFeeDetails } from '../../src/api/feesApi';
 import { useAuth } from '../../src/context/AuthContext';
@@ -33,6 +38,9 @@ export default function FeesScreen() {
   const [selectedFee, setSelectedFee] = useState<FeeItem | null>(null);
   const [paymentStep, setPaymentStep] = useState<'METHOD' | 'PROCESSING' | 'SUCCESS'>('METHOD');
   const [selectedMethod, setSelectedMethod] = useState<'ONLINE' | 'OFFLINE' | null>(null);
+
+  // --- PRINTING STATE ---
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const fetchData = async () => {
     if (!user?.username) return;
@@ -57,6 +65,234 @@ export default function FeesScreen() {
     fetchData();
   };
 
+  // --- 🔥 UPDATED DOWNLOAD RECEIPT HANDLER ---
+  const handleDownloadReceipt = async (item: PaymentHistoryItem) => {
+    setIsPrinting(true);
+    try {
+      // Professional Receipt Template with Logo
+      const htmlContent = `
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Fee Receipt - ${item.paymentId}</title>
+            <style>
+              @page { size: A4; margin: 0; }
+              body { 
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+                background-color: #fff; 
+                padding: 40px; 
+                color: #333; 
+                -webkit-print-color-adjust: exact; 
+              }
+              .receipt-box {
+                border: 2px solid #2563EB;
+                padding: 30px;
+                max-width: 800px;
+                margin: 0 auto;
+                position: relative;
+              }
+              .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #f3f4f6;
+                padding-bottom: 20px;
+                margin-bottom: 20px;
+              }
+              .logo-section { display: flex; align-items: center; gap: 15px; }
+              .logo { width: 70px; height: 70px; object-fit: contain; }
+              .school-name { font-size: 24px; font-weight: 800; color: #2563EB; margin: 0; text-transform: uppercase; }
+              .school-tagline { font-size: 12px; color: #666; margin-top: 4px; }
+              
+              .receipt-title-box {
+                text-align: center;
+                margin-bottom: 30px;
+              }
+              .receipt-title {
+                display: inline-block;
+                background-color: #2563EB;
+                color: white;
+                padding: 8px 20px;
+                font-size: 16px;
+                font-weight: bold;
+                border-radius: 20px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+              }
+
+              .info-grid {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 30px;
+              }
+              .info-column { width: 48%; }
+              .info-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dashed #eee; padding-bottom: 4px; }
+              .info-label { font-weight: 600; color: #555; font-size: 14px; }
+              .info-val { font-weight: bold; color: #000; font-size: 14px; }
+
+              .amount-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+              }
+              .amount-table th {
+                background-color: #f3f4f6;
+                color: #374151;
+                text-align: left;
+                padding: 12px;
+                border: 1px solid #e5e7eb;
+              }
+              .amount-table td {
+                padding: 12px;
+                border: 1px solid #e5e7eb;
+              }
+              .total-row { background-color: #eff6ff; }
+              .total-row td { font-weight: bold; color: #1e40af; font-size: 16px; }
+
+              .footer {
+                margin-top: 50px;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                font-size: 12px;
+                color: #9ca3af;
+              }
+              .signature {
+                text-align: center;
+                width: 150px;
+              }
+              .sign-line {
+                border-top: 1px solid #333;
+                margin-bottom: 5px;
+              }
+              .watermark {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-45deg);
+                font-size: 80px;
+                color: rgba(37, 99, 235, 0.05);
+                font-weight: bold;
+                z-index: 0;
+                pointer-events: none;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="receipt-box">
+              <div class="watermark">PAID</div>
+              
+              <div class="header">
+                <div class="logo-section">
+                  <img src="https://www.anasolconsultancyservices.com/assets/Logo1-BPHJw_VO.png" class="logo" alt="Logo" />
+                  <div>
+                    <h1 class="school-name">ANASOL TECHNO SCHOOL</h1>
+                    <p class="school-tagline">Excellence in Education | ISO 9001:2015 Certified</p>
+                  </div>
+                </div>
+                <div style="text-align: right; font-size: 12px; color: #666;">
+                  <p>123, Tech Park Road</p>
+                  <p>Hyderabad, Telangana</p>
+                  <p>Ph: +91 98765 43210</p>
+                </div>
+              </div>
+
+              <div class="receipt-title-box">
+                <span class="receipt-title">Payment Receipt</span>
+              </div>
+
+              <div class="info-grid">
+                <div class="info-column">
+                  <div class="info-row"><span class="info-label">Receipt No:</span> <span class="info-val">#${item.paymentId.substring(0,8).toUpperCase()}</span></div>
+                  <div class="info-row"><span class="info-label">Transaction ID:</span> <span class="info-val">${item.transactionRef}</span></div>
+                  <div class="info-row"><span class="info-label">Payment Date:</span> <span class="info-val">${new Date(item.paymentDate).toLocaleDateString()}</span></div>
+                  <div class="info-row"><span class="info-label">Payment Mode:</span> <span class="info-val">${item.method}</span></div>
+                </div>
+                <div class="info-column">
+                  <div class="info-row"><span class="info-label">Student ID:</span> <span class="info-val">${user?.username}</span></div>
+                  <div class="info-row"><span class="info-label">Session:</span> <span class="info-val">2025-2026</span></div>
+                  <div class="info-row"><span class="info-label">Status:</span> <span style="color: #10B981; font-weight: bold;">SUCCESS</span></div>
+                </div>
+              </div>
+
+              <table class="amount-table">
+                <thead>
+                  <tr>
+                    <th>Description</th>
+                    <th style="text-align: right;">Amount (INR)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>School Fee Payment</td>
+                    <td style="text-align: right;">₹ ${item.amount.toLocaleString()}.00</td>
+                  </tr>
+                  <tr class="total-row">
+                    <td>TOTAL RECEIVED</td>
+                    <td style="text-align: right;">₹ ${item.amount.toLocaleString()}.00</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style="margin-top: 20px; font-size: 13px; color: #555;">
+                <strong>Amount in words:</strong> Paid via ${item.method} transaction.
+              </div>
+
+              <div class="footer">
+                <div>
+                  <p>Generated on: ${new Date().toLocaleString()}</p>
+                  <p>This is a computer generated receipt.</p>
+                </div>
+                <div class="signature">
+                  <div class="sign-line"></div>
+                  <div>Authorized Signatory</div>
+                </div>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      if (Platform.OS === 'web') {
+        // 🔥 FIX FOR WEB: Using Iframe method to print ONLY the receipt
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.width = '0px';
+        iframe.style.height = '0px';
+        iframe.style.border = 'none';
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentWindow?.document;
+        if (doc) {
+          doc.open();
+          doc.write(htmlContent);
+          doc.close();
+          
+          // Wait for images (logo) to load before printing
+          setTimeout(() => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            // Cleanup
+            setTimeout(() => {
+              if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+              }
+            }, 1000);
+          }, 500); 
+        }
+      } else {
+        // Mobile Logic
+        const { uri } = await Print.printToFileAsync({ html: htmlContent });
+        await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+      }
+    } catch (e) {
+      Alert.alert("Error", "Failed to print receipt");
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
   // --- PAYMENT HANDLERS ---
 
   const handlePayClick = (fee: FeeItem) => {
@@ -75,18 +311,16 @@ export default function FeesScreen() {
 
       setPaymentStep('PROCESSING');
 
-      // Simulate Network Delay & Backend Call
       setTimeout(async () => {
           try {
-              // Simulate Backend API Call to create Payment
               await studentApi.post('/fee/student/pay', {
                   feeId: selectedFee.feeId,
-                  amount: selectedFee.amount, // Paying full amount
+                  amount: selectedFee.amount,
                   method: selectedMethod === 'ONLINE' ? 'UPI' : 'CASH'
               });
               
               setPaymentStep('SUCCESS');
-              fetchData(); // Refresh data in background
+              fetchData();
           } catch (e) {
               Alert.alert("Payment Failed", "Something went wrong. Try again.");
               setPayModalVisible(false);
@@ -129,7 +363,6 @@ export default function FeesScreen() {
                <Text style={[styles.amountText, {fontSize: 14, color: '#F59E0B'}]}>To be updated</Text>
            )}
            
-           {/* Status Badge Logic */}
            <View style={[
              styles.statusBadge, 
              item.status === 'OVERDUE' ? styles.statusOverdue : 
@@ -144,7 +377,6 @@ export default function FeesScreen() {
         </View>
       </View>
       
-      {/* Divider & Action */}
       {item.status !== 'PAID' && item.amount > 0 && (
           <>
             <View style={styles.cardDivider} />
@@ -160,7 +392,6 @@ export default function FeesScreen() {
   const renderHistoryItem = (item: PaymentHistoryItem) => (
     <View key={item.paymentId} style={styles.cardContainer}>
       <View style={styles.rowBetween}>
-        {/* Added flex: 1 to allow text wrapping and prevent overflow */}
         <View style={{ flex: 1, paddingRight: 8 }}>
           <Text style={styles.feeTitle}>Payment Received</Text>
           <Text style={styles.feeDate}>{new Date(item.paymentDate).toLocaleDateString()} • {item.method}</Text>
@@ -174,16 +405,23 @@ export default function FeesScreen() {
            </View>
         </View>
       </View>
+      
+      {/* Print Button */}
+      <TouchableOpacity 
+        style={styles.printButton} 
+        onPress={() => handleDownloadReceipt(item)}
+      >
+         <Ionicons name="print-outline" size={16} color="#2563EB" />
+         <Text style={styles.printButtonText}>Download Receipt</Text>
+      </TouchableOpacity>
     </View>
   );
 
-  // --- PAYMENT MODAL CONTENT ---
+  // --- RENDER MODAL ---
   const renderPaymentModal = () => (
       <Modal visible={payModalVisible} transparent animationType="slide">
           <View style={styles.modalOverlay}>
               <View style={[styles.modalContent, isWeb && {width: 450}]}>
-                  
-                  {/* HEADER */}
                   <View style={styles.modalHeader}>
                       <Text style={styles.modalTitle}>
                           {paymentStep === 'SUCCESS' ? 'Payment Receipt' : 'Make Payment'}
@@ -195,7 +433,6 @@ export default function FeesScreen() {
                       )}
                   </View>
 
-                  {/* STEP 1: SELECT METHOD */}
                   {paymentStep === 'METHOD' && selectedFee && (
                       <View>
                           <View style={styles.feeSummaryBox}>
@@ -244,7 +481,6 @@ export default function FeesScreen() {
                       </View>
                   )}
 
-                  {/* STEP 2: PROCESSING */}
                   {paymentStep === 'PROCESSING' && (
                       <View style={styles.processingContainer}>
                           <ActivityIndicator size="large" color="#2563EB" />
@@ -253,7 +489,6 @@ export default function FeesScreen() {
                       </View>
                   )}
 
-                  {/* STEP 3: SUCCESS */}
                   {paymentStep === 'SUCCESS' && (
                       <View style={styles.successContainer}>
                           <View style={styles.successIconCircle}>
@@ -261,28 +496,11 @@ export default function FeesScreen() {
                           </View>
                           <Text style={styles.successTitle}>Payment Successful!</Text>
                           <Text style={styles.successSub}>Your transaction has been completed.</Text>
-                          
-                          <View style={styles.receiptBox}>
-                              <View style={styles.receiptRow}>
-                                  <Text style={styles.receiptLabel}>Amount Paid</Text>
-                                  <Text style={styles.receiptValue}>₹{selectedFee?.amount.toLocaleString()}</Text>
-                              </View>
-                              <View style={styles.receiptRow}>
-                                  <Text style={styles.receiptLabel}>Transaction ID</Text>
-                                  <Text style={styles.receiptValue}>TXN{Math.floor(Math.random()*1000000)}</Text>
-                              </View>
-                              <View style={styles.receiptRow}>
-                                  <Text style={styles.receiptLabel}>Date</Text>
-                                  <Text style={styles.receiptValue}>{new Date().toLocaleDateString()}</Text>
-                              </View>
-                          </View>
-
                           <TouchableOpacity style={styles.doneBtn} onPress={closePaymentModal}>
                               <Text style={styles.doneText}>Done</Text>
                           </TouchableOpacity>
                       </View>
                   )}
-
               </View>
           </View>
       </Modal>
@@ -304,7 +522,6 @@ export default function FeesScreen() {
     >
       <Text style={styles.pageTitle}>Fee & Payments</Text>
 
-      {/* --- 1. SUMMARY SECTION --- */}
       {feeData?.summary && (
         <View style={[styles.summaryContainer, isWeb && styles.summaryWeb]}>
             <SummaryCard 
@@ -328,7 +545,6 @@ export default function FeesScreen() {
         </View>
       )}
 
-      {/* --- 2. TABS --- */}
       <View style={styles.tabContainer}>
          <TouchableOpacity 
             style={[styles.tabButton, activeTab === 'DUES' && styles.tabActive]}
@@ -344,13 +560,11 @@ export default function FeesScreen() {
          </TouchableOpacity>
       </View>
 
-      {/* --- 3. LIST SECTION --- */}
       {activeTab === 'DUES' ? (
         <View>
-          {/* If allFees exists but is empty OR has items */}
           {(feeData?.allFees && feeData.allFees.length > 0) ? (
             feeData.allFees
-                .filter(item => item.status !== 'PAID') // Only show pending here
+                .filter(item => item.status !== 'PAID')
                 .map(renderFeeItem)
           ) : (
             <View style={styles.emptyState}>
@@ -369,81 +583,41 @@ export default function FeesScreen() {
         </View>
       )}
 
-      {/* PAYMENT MODAL */}
       {renderPaymentModal()}
+
+      {isPrinting && (
+        <View style={styles.printingOverlay}>
+            <View style={styles.printingBox}>
+                <ActivityIndicator size="large" color="#F97316" />
+                <Text style={styles.printingText}>Generating Receipt...</Text>
+            </View>
+        </View>
+      )}
 
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#F3F4F6',
-  },
+  container: { flex: 1, padding: 20, backgroundColor: '#F3F4F6' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  pageTitle: {
-    fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 20,
-  },
+  pageTitle: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 20 },
 
-  // Summary Cards
-  summaryContainer: {
-    flexDirection: 'column', gap: 12, marginBottom: 24,
-  },
-  summaryWeb: {
-    flexDirection: 'row', justifyContent: 'space-between',
-  },
-  summaryCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
-  },
-  iconBox: {
-    width: 48, height: 48, borderRadius: 24,
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 16,
-  },
+  summaryContainer: { flexDirection: 'column', gap: 12, marginBottom: 24 },
+  summaryWeb: { flexDirection: 'row', justifyContent: 'space-between' },
+  summaryCard: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, borderLeftWidth: 4, shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  iconBox: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
   summaryLabel: { fontSize: 14, color: '#6B7280', marginBottom: 4 },
   summaryValue: { fontSize: 20, fontWeight: 'bold' },
 
-  // Tabs
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#E5E7EB',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 20,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  tabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000', shadowOffset: {width:0, height:1}, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
-  },
+  tabContainer: { flexDirection: 'row', backgroundColor: '#E5E7EB', borderRadius: 12, padding: 4, marginBottom: 20 },
+  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
+  tabActive: { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: {width:0, height:1}, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
   tabText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
   tabTextActive: { color: '#F97316' },
 
-  // List Cards
-  cardContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3,
-  },
-  rowBetween: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-  },
+  cardContainer: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   feeTitle: { fontSize: 16, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
   feeDate: { fontSize: 13, color: '#6B7280', marginBottom: 4 },
   receiptText: { fontSize: 12, color: '#9CA3AF' },
@@ -451,12 +625,10 @@ const styles = StyleSheet.create({
   amountContainer: { alignItems: 'flex-end' },
   amountText: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 6 },
   
-  // Status Badges
   statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   statusOverdue: { backgroundColor: '#FEE2E2' },
   statusPending: { backgroundColor: '#FEF3C7' },
   statusPaidBadge: { backgroundColor: '#D1FAE5' },
-  
   statusPaid: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   
   statusText: { fontSize: 11, fontWeight: 'bold' },
@@ -466,57 +638,42 @@ const styles = StyleSheet.create({
 
   cardDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
 
-  // Pay Button
-  payButton: {
-    backgroundColor: '#F97316',
-    borderRadius: 8,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  payButton: { backgroundColor: '#F97316', borderRadius: 8, paddingVertical: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   payButtonText: { color: '#FFFFFF', fontWeight: 'bold', marginRight: 8 },
+
+  printButton: { flexDirection: 'row', alignItems: 'center', marginTop: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6', justifyContent: 'flex-end' },
+  printButtonText: { color: '#2563EB', fontWeight: '600', fontSize: 13, marginLeft: 6 },
 
   emptyState: { alignItems: 'center', marginTop: 40 },
   emptyText: { textAlign: 'center', color: '#9CA3AF', marginTop: 10, fontStyle: 'italic' },
 
-  // --- MODAL STYLES ---
+  printingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
+  printingBox: { backgroundColor: 'white', padding: 20, borderRadius: 12, alignItems: 'center', elevation: 5 },
+  printingText: { marginTop: 10, fontWeight: 'bold', color: '#374151' },
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', width: '100%', maxWidth: 450, borderRadius: 16, padding: 24, elevation: 5 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
-  
   feeSummaryBox: { backgroundColor: '#F3F4F6', padding: 16, borderRadius: 12, marginBottom: 20, alignItems: 'center' },
   feeNameModal: { fontSize: 16, color: '#4B5563', marginBottom: 4 },
   feeAmountModal: { fontSize: 32, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
   feeDueModal: { fontSize: 14, color: '#EF4444', fontWeight: '500' },
-
   methodLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 10 },
   methodCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, marginBottom: 10, backgroundColor: '#FFF' },
   methodActive: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   methodIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   methodTitle: { fontSize: 16, fontWeight: 'bold', color: '#1F2937' },
   methodSub: { fontSize: 12, color: '#6B7280' },
-
   payNowBtn: { backgroundColor: '#2563EB', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
   payNowText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-
-  // Processing
   processingContainer: { alignItems: 'center', paddingVertical: 40 },
   processingText: { marginTop: 16, fontSize: 18, fontWeight: 'bold', color: '#111827' },
   processingSub: { marginTop: 8, color: '#6B7280' },
-
-  // Success
   successContainer: { alignItems: 'center' },
   successIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   successTitle: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 8 },
   successSub: { fontSize: 14, color: '#6B7280', marginBottom: 24 },
-  
-  receiptBox: { width: '100%', backgroundColor: '#F9FAFB', padding: 16, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: '#E5E7EB' },
-  receiptRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  receiptLabel: { color: '#6B7280' },
-  receiptValue: { fontWeight: 'bold', color: '#111827' },
-
   doneBtn: { backgroundColor: '#10B981', paddingVertical: 14, width: '100%', borderRadius: 12, alignItems: 'center' },
   doneText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
 });

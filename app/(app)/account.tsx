@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -17,9 +19,9 @@ import {
     View
 } from 'react-native';
 import { getAllClassSections } from '../../src/api/adminApi';
-import { assignFeesBulk, CreateFeeRequest, getAdminFeeStats, getClassFeeStatus } from '../../src/api/feesApi';
+import { assignFeesBulk, CreateFeeRequest, getAdminFeeStats, getClassFeeStatus, getStudentFeeDetails } from '../../src/api/feesApi';
 import { useAuth } from '../../src/context/AuthContext';
-import { ClassFeeStatsDTO, StudentFeeStatusDTO } from '../../src/types/fees';
+import { ClassFeeStatsDTO, PaymentHistoryItem, StudentFeeStatusDTO } from '../../src/types/fees';
 
 // --- WEB DATE INPUT ---
 const WebDateInput = ({ value, onChange }: { value: Date, onChange: (d: Date) => void }) => {
@@ -91,6 +93,13 @@ export default function AccountScreen() {
   // Custom Student Amounts
   const [studentCustomization, setStudentCustomization] = useState<Record<string, { name: string, totalFee: number, amount: string, selected: boolean }>>({});
 
+  // --- 🔥 NEW: HISTORY MODAL STATES ---
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [studentPayments, setStudentPayments] = useState<PaymentHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedStudentForReceipt, setSelectedStudentForReceipt] = useState<{name: string, id: string} | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+
   useEffect(() => {
     if (user?.role === 'ADMIN') {
         fetchData();
@@ -142,6 +151,134 @@ export default function AccountScreen() {
           setStudentList(students.sort((a, b) => b.balanceAmount - a.balanceAmount));
       } catch(e) { console.error(e); } 
       finally { setListLoading(false); }
+  };
+
+  // --- 🔥 NEW: HANDLE STUDENT CLICK FOR HISTORY ---
+  const handleStudentPress = async (student: StudentFeeStatusDTO) => {
+      setSelectedStudentForReceipt({ name: student.studentName, id: student.studentId });
+      setHistoryLoading(true);
+      setHistoryModalVisible(true);
+      try {
+          const details = await getStudentFeeDetails(student.studentId);
+          // Sort by date desc
+          const sortedHistory = (details?.paymentHistory || []).sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+          setStudentPayments(sortedHistory);
+      } catch(e) {
+          console.error(e);
+          Alert.alert("Error", "Failed to load payment history");
+      } finally {
+          setHistoryLoading(false);
+      }
+  };
+
+  // --- 🔥 NEW: PRINT RECEIPT HANDLER ---
+  const handlePrintReceipt = async (item: PaymentHistoryItem) => {
+      if (!selectedStudentForReceipt) return;
+      setIsPrinting(true);
+      try {
+        const htmlContent = `
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Receipt - ${item.paymentId}</title>
+              <style>
+                @page { size: A4; margin: 0; }
+                body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #333; background-color: #fff; }
+                .receipt-box { border: 2px solid #2563EB; padding: 30px; max-width: 800px; margin: 0 auto; }
+                .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; margin-bottom: 20px; }
+                .logo-section { display: flex; align-items: center; gap: 15px; }
+                .logo { width: 70px; height: 70px; object-fit: contain; }
+                .school-name { font-size: 24px; font-weight: 800; color: #2563EB; margin: 0; text-transform: uppercase; }
+                .receipt-title { text-align: center; margin-bottom: 30px; }
+                .receipt-badge { background-color: #2563EB; color: white; padding: 8px 20px; font-weight: bold; border-radius: 20px; text-transform: uppercase; }
+                .info-grid { display: flex; justify-content: space-between; margin-bottom: 30px; }
+                .info-column { width: 48%; }
+                .info-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dashed #eee; padding-bottom: 4px; }
+                .info-label { font-weight: 600; color: #555; font-size: 14px; }
+                .info-val { font-weight: bold; color: #000; font-size: 14px; }
+                .amount-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                .amount-table th { background-color: #f3f4f6; color: #374151; padding: 12px; text-align: left; border: 1px solid #e5e7eb; }
+                .amount-table td { padding: 12px; border: 1px solid #e5e7eb; }
+                .total-row td { font-weight: bold; color: #1e40af; font-size: 16px; background-color: #eff6ff; }
+                .footer { margin-top: 50px; display: flex; justify-content: space-between; font-size: 12px; color: #9ca3af; }
+                .signature { text-align: center; width: 150px; border-top: 1px solid #333; padding-top: 5px; }
+              </style>
+            </head>
+            <body>
+              <div class="receipt-box">
+                <div class="header">
+                  <div class="logo-section">
+                    <img src="https://www.anasolconsultancyservices.com/assets/Logo1-BPHJw_VO.png" class="logo" alt="Logo" />
+                    <div>
+                      <h1 class="school-name">ANASOL TECHNO SCHOOL</h1>
+                      <p style="font-size: 12px; color: #666; margin: 4px 0 0;">Excellence in Education</p>
+                    </div>
+                  </div>
+                  <div style="text-align: right; font-size: 12px; color: #666;">
+                    <p>Hyderabad, Telangana</p>
+                    <p>Ph: +91 98765 43210</p>
+                  </div>
+                </div>
+
+                <div class="receipt-title"><span class="receipt-badge">Payment Receipt</span></div>
+
+                <div class="info-grid">
+                  <div class="info-column">
+                    <div class="info-row"><span class="info-label">Receipt No:</span> <span class="info-val">#${item.paymentId.substring(0,8).toUpperCase()}</span></div>
+                    <div class="info-row"><span class="info-label">Transaction ID:</span> <span class="info-val">${item.transactionRef}</span></div>
+                    <div class="info-row"><span class="info-label">Date:</span> <span class="info-val">${new Date(item.paymentDate).toLocaleDateString()}</span></div>
+                    <div class="info-row"><span class="info-label">Mode:</span> <span class="info-val">${item.method}</span></div>
+                  </div>
+                  <div class="info-column">
+                    <div class="info-row"><span class="info-label">Student Name:</span> <span class="info-val">${selectedStudentForReceipt.name}</span></div>
+                    <div class="info-row"><span class="info-label">Student ID:</span> <span class="info-val">${selectedStudentForReceipt.id}</span></div>
+                    <div class="info-row"><span class="info-label">Status:</span> <span style="color: #10B981; font-weight: bold;">PAID</span></div>
+                  </div>
+                </div>
+
+                <table class="amount-table">
+                  <thead><tr><th>Description</th><th style="text-align: right;">Amount (INR)</th></tr></thead>
+                  <tbody>
+                    <tr><td>School Fee Payment</td><td style="text-align: right;">₹ ${item.amount.toLocaleString()}.00</td></tr>
+                    <tr class="total-row"><td>TOTAL RECEIVED</td><td style="text-align: right;">₹ ${item.amount.toLocaleString()}.00</td></tr>
+                  </tbody>
+                </table>
+
+                <div class="footer">
+                  <div><p>Generated on: ${new Date().toLocaleString()}</p><p>Computer generated receipt.</p></div>
+                  <div class="signature">Authorized Signatory</div>
+                </div>
+              </div>
+            </body>
+          </html>
+        `;
+
+        if (Platform.OS === 'web') {
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.width = '0px';
+            iframe.style.height = '0px';
+            iframe.style.border = 'none';
+            document.body.appendChild(iframe);
+            const doc = iframe.contentWindow?.document;
+            if (doc) {
+                doc.open(); doc.write(htmlContent); doc.close();
+                setTimeout(() => {
+                    iframe.contentWindow?.focus();
+                    iframe.contentWindow?.print();
+                    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 1000);
+                }, 500);
+            }
+        } else {
+            const { uri } = await Print.printToFileAsync({ html: htmlContent });
+            await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+        }
+      } catch(e) {
+          Alert.alert("Error", "Failed to print");
+      } finally {
+          setIsPrinting(false);
+      }
   };
 
   const handleNextStep = async () => {
@@ -533,7 +670,11 @@ export default function AccountScreen() {
                       contentContainerStyle={{ padding: 16 }}
                       ListEmptyComponent={<Text style={styles.emptyText}>No students found.</Text>}
                       renderItem={({ item }) => (
-                          <View style={styles.studentListRow}>
+                          <TouchableOpacity 
+                            style={styles.studentListRow} 
+                            activeOpacity={0.7}
+                            onPress={() => handleStudentPress(item)}
+                          >
                               <View style={{flex: 1}}>
                                   <Text style={styles.stName}>{item.studentName}</Text>
                                   <Text style={styles.stRoll}>{item.studentId}</Text>
@@ -548,12 +689,72 @@ export default function AccountScreen() {
                                       <Text style={[styles.stDue, {color: '#EF4444', fontWeight: 'bold'}]}>Due: ₹{item.balanceAmount.toLocaleString()}</Text>
                                   )}
                               </View>
-                          </View>
+                              <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{marginLeft: 8}} />
+                          </TouchableOpacity>
                       )}
                   />
               )}
           </View>
       </Modal>
+
+      {/* 🔥 NEW: HISTORY MODAL */}
+      <Modal visible={historyModalVisible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+              <View style={[styles.modalContentLarge, isWeb && {width: 600}]}>
+                  <View style={styles.modalHeader}>
+                      <View>
+                          <Text style={styles.modalTitle}>Payment History</Text>
+                          <Text style={styles.modalSub}>{selectedStudentForReceipt?.name} ({selectedStudentForReceipt?.id})</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => setHistoryModalVisible(false)}>
+                          <Ionicons name="close" size={24} color="#374151" />
+                      </TouchableOpacity>
+                  </View>
+
+                  {historyLoading ? (
+                      <View style={styles.centered}><ActivityIndicator color="#2563EB" /></View>
+                  ) : studentPayments.length === 0 ? (
+                      <View style={styles.centered}>
+                          <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
+                          <Text style={styles.emptyText}>No payment history found.</Text>
+                      </View>
+                  ) : (
+                      <FlatList 
+                          data={studentPayments}
+                          keyExtractor={item => item.paymentId}
+                          contentContainerStyle={{paddingBottom: 20}}
+                          renderItem={({item}) => (
+                              <View style={styles.historyCard}>
+                                  <View style={{flex: 1}}>
+                                      <Text style={styles.historyAmount}>₹{item.amount.toLocaleString()}</Text>
+                                      <Text style={styles.historyDate}>{new Date(item.paymentDate).toLocaleDateString()} • {item.method}</Text>
+                                      <Text style={styles.historyRef}>Ref: {item.transactionRef}</Text>
+                                  </View>
+                                  <TouchableOpacity 
+                                    style={styles.printBtn}
+                                    onPress={() => handlePrintReceipt(item)}
+                                  >
+                                      <Ionicons name="print-outline" size={18} color="#2563EB" />
+                                      <Text style={styles.printText}>Print Receipt</Text>
+                                  </TouchableOpacity>
+                              </View>
+                          )}
+                      />
+                  )}
+              </View>
+          </View>
+      </Modal>
+
+      {/* PRINTING OVERLAY */}
+      {isPrinting && (
+        <View style={styles.printingOverlay}>
+            <View style={styles.printingBox}>
+                <ActivityIndicator size="large" color="#F97316" />
+                <Text style={styles.printingText}>Generating Receipt...</Text>
+            </View>
+        </View>
+      )}
+
     </View>
   );
 }
@@ -648,4 +849,16 @@ const styles = StyleSheet.create({
   stStatus: { fontSize: 13, fontWeight: 'bold' },
   stDue: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   emptyText: { textAlign: 'center', marginTop: 40, color: '#9CA3AF', fontStyle: 'italic' },
+
+  // History Card
+  historyCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  historyAmount: { fontSize: 16, fontWeight: 'bold', color: '#10B981' },
+  historyDate: { fontSize: 13, color: '#4B5563', marginVertical: 2 },
+  historyRef: { fontSize: 11, color: '#9CA3AF' },
+  printBtn: { flexDirection: 'row', alignItems: 'center', padding: 8, backgroundColor: '#EFF6FF', borderRadius: 8 },
+  printText: { fontSize: 12, color: '#2563EB', fontWeight: '600', marginLeft: 4 },
+
+  printingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
+  printingBox: { backgroundColor: 'white', padding: 20, borderRadius: 12, alignItems: 'center', elevation: 5 },
+  printingText: { marginTop: 10, fontWeight: 'bold', color: '#374151' },
 });
