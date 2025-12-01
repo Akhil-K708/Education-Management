@@ -27,7 +27,7 @@ import { getStudentProfile } from "../../api/studentService";
 import { useAuth } from "../../context/AuthContext";
 import { Assignment, AssignmentCombined } from "../../types/assignment";
 
-const API_BASE_URL = 'http://192.168.0.113:8080'; 
+const API_BASE_URL = 'http://192.168.0.112:8080'; 
 
 // Helper to open files
 const openFileUrl = (fileUrl: string) => {

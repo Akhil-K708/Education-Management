@@ -31,7 +31,7 @@ import {
 } from '../../types/dashboard';
 
 // 🔥 1. DEFINE BASE URL & HELPER
-const API_BASE_URL = 'http://192.168.0.113:8080';
+const API_BASE_URL = 'http://192.168.0.112:8080';
 
 const getFullImageUrl = (url: string | undefined | null) => {
   if (!url) return undefined;

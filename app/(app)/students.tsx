@@ -33,7 +33,7 @@ import {
 } from '../../src/api/adminApi';
 import { useAuth } from '../../src/context/AuthContext';
 
-const API_BASE_URL = 'http://192.168.0.113:8080'; // Backend URL for Images
+const API_BASE_URL = 'http://192.168.0.112:8080'; // Backend URL for Images
 
 // --- HELPER COMPONENTS ---
 const InputField = ({ label, value, onChange, placeholder, keyboardType = 'default', editable = true }: any) => (

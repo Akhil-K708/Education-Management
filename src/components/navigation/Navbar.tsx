@@ -2,18 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 import { authApi } from '../../api/axiosInstance';
 import { getStudentProfile } from '../../api/studentService';
@@ -22,7 +22,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import NotificationList from '../notifications/NotificationList';
 
-const API_BASE_URL = 'http://192.168.0.113:8080';
+const API_BASE_URL = 'http://192.168.0.112:8080';
 
 const getFullImageUrl = (url: string | undefined | null) => {
   if (!url) return null;

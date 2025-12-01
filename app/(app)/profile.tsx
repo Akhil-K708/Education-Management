@@ -16,7 +16,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { StudentDTO } from '../../src/types/student';
 
 // Backend Base URL
-const API_BASE_URL = 'http://192.168.0.113:8080';
+const API_BASE_URL = 'http://192.168.0.112:8080';
 
 export default function ProfileScreen() {
   const { state } = useAuth();

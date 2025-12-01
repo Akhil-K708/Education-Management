@@ -20,7 +20,7 @@ import { getAllNotices } from './noticeApi';
 import { getStudentProfile } from './studentService';
 
 // 1. API BASE URL
-const API_BASE_URL = 'http://192.168.0.113:8080';
+const API_BASE_URL = 'http://192.168.0.112:8080';
 
 // Helper to fix Image URL
 const getFullImageUrl = (url: string | null | undefined) => {
