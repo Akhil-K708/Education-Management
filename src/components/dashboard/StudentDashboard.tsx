@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 
 // API Imports
-import { getClassStudents, getStudentAttendance } from '../../api/attendanceApi';
+// 🔥 Added getStudentYearlyAttendance to imports
+import { getClassStudents, getStudentAttendance, getStudentYearlyAttendance } from '../../api/attendanceApi';
 import { getAllExams } from '../../api/examApi';
 import { getStudentExamResult } from '../../api/resultsApi';
 import { getStudentProfile } from '../../api/studentService';
@@ -87,16 +88,21 @@ export const StudentDashboard = () => {
           setClassStats({ total, boys, girls });
         }
 
-        // 3. Fetch Attendance (Current Month + Chart Data)
+        // 3. Fetch Attendance
         const today = new Date();
         const currentYear = today.getFullYear();
-        const currentMonth = today.getMonth() + 1;
+        
+        // 🔥 A. Yearly Percentage (UPDATED LOGIC)
+        // Instead of current month, we now fetch yearly stats for the dashboard card
+        try {
+            const yearlyAtt = await getStudentYearlyAttendance(user.username, currentYear);
+            setAttendancePercentage(`${yearlyAtt.percentage.toFixed(1)}%`);
+        } catch (e) {
+            console.log("Failed to fetch yearly attendance, defaulting to 0");
+            setAttendancePercentage('0%');
+        }
 
-        // A. Current Month Percentage
-        const currAtt = await getStudentAttendance(user.username, currentYear, currentMonth);
-        setAttendancePercentage(`${currAtt.percentage.toFixed(1)}%`);
-
-        // B. Last 6 Months Data for Chart
+        // B. Last 6 Months Data for Chart (Keeping existing logic for graph)
         const monthsLabels: string[] = [];
         const attendanceValues: number[] = [];
         const chartPromises = [];
@@ -121,10 +127,12 @@ export const StudentDashboard = () => {
           datasets: [{ data: attendanceValues }]
         });
 
-        // 4. Fetch Overall Marks (Latest Published Exam)
+        // 4. Fetch Overall Marks (Latest Published Exam Logic)
         if (profileDTO.classSectionId) {
           const allExams = await getAllExams();
-          // Filter Published & Sort by Date (Latest First)
+          
+          // 🔥 Filter Published & Sort by Date (Latest First)
+          // This ensures if Term 2 is published, it comes first. If only Term 1, it comes first.
           const publishedExams = allExams
             .filter(e => e.status === 'PUBLISHED')
             .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
@@ -133,7 +141,7 @@ export const StudentDashboard = () => {
             const latestExam = publishedExams[0];
             const result = await getStudentExamResult(latestExam.examId, user.username, profileDTO.classSectionId);
             
-            if (result && result.stats.percentage) {
+            if (result && result.stats && result.stats.percentage) {
               setOverallMarksPercentage(result.stats.percentage);
             }
           }
@@ -165,14 +173,14 @@ export const StudentDashboard = () => {
           <ProfileCard profile={profile} />
           
           <DashboardStatCard
-            title="Attendance"
+            title="Yearly Attendance"
             value={attendancePercentage}
             iconName="checkmark-done-outline"
             color="#2563EB"
           />
 
           <DashboardStatCard
-            title="Overall Marks"
+            title="Recent Marks"
             value={overallMarksPercentage}
             iconName="star-outline"
             color="#10B981"
@@ -202,7 +210,7 @@ export const StudentDashboard = () => {
              <View style={styles.statsWrapper}>
                 <View style={{ marginBottom: 16, flex: 1 }}>
                   <DashboardStatCard
-                    title="Attendance"
+                    title="Yearly Attendance"
                     value={attendancePercentage}
                     iconName="checkmark-done-outline"
                     color="#2563EB"
@@ -210,7 +218,7 @@ export const StudentDashboard = () => {
                 </View>
                 <View style={{ flex: 1 }}>
                   <DashboardStatCard
-                    title="Overall Marks"
+                    title="Recent Marks"
                     value={overallMarksPercentage}
                     iconName="star-outline"
                     color="#10B981"

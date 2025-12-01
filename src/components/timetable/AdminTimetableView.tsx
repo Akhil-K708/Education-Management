@@ -78,7 +78,22 @@ export default function AdminTimetableView() {
   const loadDropdowns = async () => {
       try {
           const [cls, sub, tch] = await Promise.all([getAllClasses(), getAllSubjects(), getAllTeachers()]);
-          setClasses(cls);
+          
+          // 🔥 SORTING LOGIC ADDED HERE
+          // 1. Convert className to Number (remove non-digits)
+          // 2. Sort by Number
+          // 3. If Numbers equal, Sort by Section (A, B...)
+          const sortedClasses = cls.sort((a: any, b: any) => {
+              const numA = parseInt(a.className.replace(/\D/g, '')) || 0;
+              const numB = parseInt(b.className.replace(/\D/g, '')) || 0;
+              
+              if (numA !== numB) {
+                  return numA - numB; 
+              }
+              return a.section.localeCompare(b.section);
+          });
+
+          setClasses(sortedClasses);
           setSubjects(sub);
           setTeachers(tch);
       } catch(e) { console.error(e); }
@@ -91,7 +106,7 @@ export default function AdminTimetableView() {
       setIsExisting(false);
 
       try {
-          // 🔥 FIX: getStudentIdByClass now handles 403 internally and returns null
+          // getStudentIdByClass handles 403 internally and returns null
           const studentId = await getStudentIdByClass(classId);
           
           if (studentId) {
@@ -115,12 +130,10 @@ export default function AdminTimetableView() {
                   setIsExisting(true);
               }
           } else {
-              // 🔥 If no student found (e.g., 403), treat as new timetable
               console.log("No student or timetable found for class - Creating new");
               setIsExisting(false);
           }
       } catch (e) {
-          // Fallback catch
           console.log("Error loading timetable, starting fresh");
           setIsExisting(false);
       } finally {
@@ -344,7 +357,9 @@ export default function AdminTimetableView() {
                             <TouchableOpacity 
                                 key={s.subjectId} 
                                 style={[styles.ddItem, newPeriod.subjectId === s.subjectId && styles.ddItemActive]}
-                                onPress={() => setNewPeriod({...newPeriod, subjectId: s.subjectId})}
+                                onPress={() => {
+                                    setNewPeriod({...newPeriod, subjectId: s.subjectId, teacherId: ''});
+                                }}
                             >
                                 <Text style={styles.ddText}>{s.subjectName}</Text>
                             </TouchableOpacity>
@@ -353,15 +368,28 @@ export default function AdminTimetableView() {
 
                     <Text style={styles.inputLabel}>Teacher</Text>
                     <ScrollView style={styles.dropdown} nestedScrollEnabled>
-                        {teachers.map(t => (
-                            <TouchableOpacity 
-                                key={t.teacherId} 
-                                style={[styles.ddItem, newPeriod.teacherId === t.teacherId && styles.ddItemActive]}
-                                onPress={() => setNewPeriod({...newPeriod, teacherId: t.teacherId})}
-                            >
-                                <Text style={styles.ddText}>{t.teacherName}</Text>
-                            </TouchableOpacity>
+                        {/* Filtered Teachers based on Subject */}
+                        {teachers
+                            .filter(t => t.subjectIds && t.subjectIds.includes(newPeriod.subjectId))
+                            .map(t => (
+                                <TouchableOpacity 
+                                    key={t.teacherId} 
+                                    style={[styles.ddItem, newPeriod.teacherId === t.teacherId && styles.ddItemActive]}
+                                    onPress={() => setNewPeriod({...newPeriod, teacherId: t.teacherId})}
+                                >
+                                    <Text style={styles.ddText}>{t.teacherName}</Text>
+                                </TouchableOpacity>
                         ))}
+                        {newPeriod.subjectId && teachers.filter(t => t.subjectIds && t.subjectIds.includes(newPeriod.subjectId)).length === 0 && (
+                            <View style={styles.ddItem}>
+                                <Text style={{color: '#EF4444', fontStyle: 'italic', fontSize: 13}}>No teachers found for this subject</Text>
+                            </View>
+                        )}
+                        {!newPeriod.subjectId && (
+                            <View style={styles.ddItem}>
+                                <Text style={{color: '#9CA3AF', fontStyle: 'italic', fontSize: 13}}>Select a subject first</Text>
+                            </View>
+                        )}
                     </ScrollView>
 
                     <View style={styles.modalActions}>

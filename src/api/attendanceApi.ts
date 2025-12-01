@@ -70,3 +70,13 @@ export const markAttendance = async (
     throw error;
   }
 };
+
+export const getStudentYearlyAttendance = async (studentId: string, year: number): Promise<StudentAttendanceViewDTO> => {
+  try {
+    const response = await studentApi.get<StudentAttendanceViewDTO>(`/attendance/${studentId}/year/${year}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching student yearly attendance:", error);
+    throw error;
+  }
+};

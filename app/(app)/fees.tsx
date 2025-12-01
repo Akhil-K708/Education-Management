@@ -47,6 +47,17 @@ export default function FeesScreen() {
     try {
       setLoading(true);
       const data = await getStudentFeeDetails(user.username);
+      
+      // 🔥 FIX 1: Sort Pending Dues (Recent Due Date First)
+      if (data && data.allFees) {
+          data.allFees.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+      }
+
+      // 🔥 FIX 2: Sort Payment History (Recent Payment Date & Time First)
+      if (data && data.paymentHistory) {
+          data.paymentHistory.sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+      }
+
       setFeeData(data);
     } catch (error) {
       console.error("Failed to load fee details:", error);
@@ -65,189 +76,82 @@ export default function FeesScreen() {
     fetchData();
   };
 
-  // --- 🔥 UPDATED DOWNLOAD RECEIPT HANDLER ---
+  // --- DOWNLOAD RECEIPT HANDLER ---
   const handleDownloadReceipt = async (item: PaymentHistoryItem) => {
     setIsPrinting(true);
     try {
-      // Professional Receipt Template with Logo
       const htmlContent = `
         <html>
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Fee Receipt - ${item.paymentId}</title>
+            <title>Receipt - ${item.paymentId}</title>
             <style>
               @page { size: A4; margin: 0; }
-              body { 
-                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
-                background-color: #fff; 
-                padding: 40px; 
-                color: #333; 
-                -webkit-print-color-adjust: exact; 
-              }
-              .receipt-box {
-                border: 2px solid #2563EB;
-                padding: 30px;
-                max-width: 800px;
-                margin: 0 auto;
-                position: relative;
-              }
-              .header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border-bottom: 2px solid #f3f4f6;
-                padding-bottom: 20px;
-                margin-bottom: 20px;
-              }
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; background-color: #fff; }
+              .receipt-box { border: 2px solid #2563EB; padding: 30px; max-width: 800px; margin: 0 auto; }
+              .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f3f4f6; padding-bottom: 20px; margin-bottom: 20px; }
               .logo-section { display: flex; align-items: center; gap: 15px; }
               .logo { width: 70px; height: 70px; object-fit: contain; }
               .school-name { font-size: 24px; font-weight: 800; color: #2563EB; margin: 0; text-transform: uppercase; }
-              .school-tagline { font-size: 12px; color: #666; margin-top: 4px; }
-              
-              .receipt-title-box {
-                text-align: center;
-                margin-bottom: 30px;
-              }
-              .receipt-title {
-                display: inline-block;
-                background-color: #2563EB;
-                color: white;
-                padding: 8px 20px;
-                font-size: 16px;
-                font-weight: bold;
-                border-radius: 20px;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-              }
-
-              .info-grid {
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 30px;
-              }
+              .receipt-title { text-align: center; margin-bottom: 30px; }
+              .receipt-badge { background-color: #2563EB; color: white; padding: 8px 20px; font-weight: bold; border-radius: 20px; text-transform: uppercase; }
+              .info-grid { display: flex; justify-content: space-between; margin-bottom: 30px; }
               .info-column { width: 48%; }
               .info-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dashed #eee; padding-bottom: 4px; }
               .info-label { font-weight: 600; color: #555; font-size: 14px; }
               .info-val { font-weight: bold; color: #000; font-size: 14px; }
-
-              .amount-table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 20px;
-              }
-              .amount-table th {
-                background-color: #f3f4f6;
-                color: #374151;
-                text-align: left;
-                padding: 12px;
-                border: 1px solid #e5e7eb;
-              }
-              .amount-table td {
-                padding: 12px;
-                border: 1px solid #e5e7eb;
-              }
-              .total-row { background-color: #eff6ff; }
-              .total-row td { font-weight: bold; color: #1e40af; font-size: 16px; }
-
-              .footer {
-                margin-top: 50px;
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-end;
-                font-size: 12px;
-                color: #9ca3af;
-              }
-              .signature {
-                text-align: center;
-                width: 150px;
-              }
-              .sign-line {
-                border-top: 1px solid #333;
-                margin-bottom: 5px;
-              }
-              .watermark {
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%) rotate(-45deg);
-                font-size: 80px;
-                color: rgba(37, 99, 235, 0.05);
-                font-weight: bold;
-                z-index: 0;
-                pointer-events: none;
-              }
+              .amount-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              .amount-table th { background-color: #f3f4f6; color: #374151; padding: 12px; text-align: left; border: 1px solid #e5e7eb; }
+              .amount-table td { padding: 12px; border: 1px solid #e5e7eb; }
+              .total-row td { font-weight: bold; color: #1e40af; font-size: 16px; background-color: #eff6ff; }
+              .footer { margin-top: 50px; display: flex; justify-content: space-between; font-size: 12px; color: #9ca3af; }
+              .signature { text-align: center; width: 150px; border-top: 1px solid #333; padding-top: 5px; }
             </style>
           </head>
           <body>
             <div class="receipt-box">
-              <div class="watermark">PAID</div>
-              
               <div class="header">
                 <div class="logo-section">
                   <img src="https://www.anasolconsultancyservices.com/assets/Logo1-BPHJw_VO.png" class="logo" alt="Logo" />
                   <div>
                     <h1 class="school-name">ANASOL TECHNO SCHOOL</h1>
-                    <p class="school-tagline">Excellence in Education | ISO 9001:2015 Certified</p>
+                    <p style="font-size: 12px; color: #666; margin: 4px 0 0;">Excellence in Education</p>
                   </div>
                 </div>
                 <div style="text-align: right; font-size: 12px; color: #666;">
-                  <p>123, Tech Park Road</p>
                   <p>Hyderabad, Telangana</p>
                   <p>Ph: +91 98765 43210</p>
                 </div>
               </div>
 
-              <div class="receipt-title-box">
-                <span class="receipt-title">Payment Receipt</span>
-              </div>
+              <div class="receipt-title"><span class="receipt-badge">Payment Receipt</span></div>
 
               <div class="info-grid">
                 <div class="info-column">
                   <div class="info-row"><span class="info-label">Receipt No:</span> <span class="info-val">#${item.paymentId.substring(0,8).toUpperCase()}</span></div>
                   <div class="info-row"><span class="info-label">Transaction ID:</span> <span class="info-val">${item.transactionRef}</span></div>
-                  <div class="info-row"><span class="info-label">Payment Date:</span> <span class="info-val">${new Date(item.paymentDate).toLocaleDateString()}</span></div>
-                  <div class="info-row"><span class="info-label">Payment Mode:</span> <span class="info-val">${item.method}</span></div>
+                  <div class="info-row"><span class="info-label">Date:</span> <span class="info-val">${new Date(item.paymentDate).toLocaleDateString()}</span></div>
+                  <div class="info-row"><span class="info-label">Mode:</span> <span class="info-val">${item.method}</span></div>
                 </div>
                 <div class="info-column">
                   <div class="info-row"><span class="info-label">Student ID:</span> <span class="info-val">${user?.username}</span></div>
                   <div class="info-row"><span class="info-label">Session:</span> <span class="info-val">2025-2026</span></div>
-                  <div class="info-row"><span class="info-label">Status:</span> <span style="color: #10B981; font-weight: bold;">SUCCESS</span></div>
+                  <div class="info-row"><span class="info-label">Status:</span> <span style="color: #10B981; font-weight: bold;">PAID</span></div>
                 </div>
               </div>
 
               <table class="amount-table">
-                <thead>
-                  <tr>
-                    <th>Description</th>
-                    <th style="text-align: right;">Amount (INR)</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Description</th><th style="text-align: right;">Amount (INR)</th></tr></thead>
                 <tbody>
-                  <tr>
-                    <td>School Fee Payment</td>
-                    <td style="text-align: right;">₹ ${item.amount.toLocaleString()}.00</td>
-                  </tr>
-                  <tr class="total-row">
-                    <td>TOTAL RECEIVED</td>
-                    <td style="text-align: right;">₹ ${item.amount.toLocaleString()}.00</td>
-                  </tr>
+                  <tr><td>School Fee Payment</td><td style="text-align: right;">₹ ${item.amount.toLocaleString()}.00</td></tr>
+                  <tr class="total-row"><td>TOTAL RECEIVED</td><td style="text-align: right;">₹ ${item.amount.toLocaleString()}.00</td></tr>
                 </tbody>
               </table>
 
-              <div style="margin-top: 20px; font-size: 13px; color: #555;">
-                <strong>Amount in words:</strong> Paid via ${item.method} transaction.
-              </div>
-
               <div class="footer">
-                <div>
-                  <p>Generated on: ${new Date().toLocaleString()}</p>
-                  <p>This is a computer generated receipt.</p>
-                </div>
-                <div class="signature">
-                  <div class="sign-line"></div>
-                  <div>Authorized Signatory</div>
-                </div>
+                <div><p>Generated on: ${new Date().toLocaleString()}</p><p>Computer generated receipt.</p></div>
+                <div class="signature">Authorized Signatory</div>
               </div>
             </div>
           </body>
@@ -255,41 +159,29 @@ export default function FeesScreen() {
       `;
 
       if (Platform.OS === 'web') {
-        // 🔥 FIX FOR WEB: Using Iframe method to print ONLY the receipt
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'fixed';
-        iframe.style.width = '0px';
-        iframe.style.height = '0px';
-        iframe.style.border = 'none';
-        document.body.appendChild(iframe);
-
-        const doc = iframe.contentWindow?.document;
-        if (doc) {
-          doc.open();
-          doc.write(htmlContent);
-          doc.close();
-          
-          // Wait for images (logo) to load before printing
-          setTimeout(() => {
-            iframe.contentWindow?.focus();
-            iframe.contentWindow?.print();
-            // Cleanup
-            setTimeout(() => {
-              if (document.body.contains(iframe)) {
-                document.body.removeChild(iframe);
-              }
-            }, 1000);
-          }, 500); 
-        }
+          const iframe = document.createElement('iframe');
+          iframe.style.position = 'fixed';
+          iframe.style.width = '0px';
+          iframe.style.height = '0px';
+          iframe.style.border = 'none';
+          document.body.appendChild(iframe);
+          const doc = iframe.contentWindow?.document;
+          if (doc) {
+              doc.open(); doc.write(htmlContent); doc.close();
+              setTimeout(() => {
+                  iframe.contentWindow?.focus();
+                  iframe.contentWindow?.print();
+                  setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 1000);
+              }, 500);
+          }
       } else {
-        // Mobile Logic
-        const { uri } = await Print.printToFileAsync({ html: htmlContent });
-        await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+          const { uri } = await Print.printToFileAsync({ html: htmlContent });
+          await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
       }
-    } catch (e) {
-      Alert.alert("Error", "Failed to print receipt");
+    } catch(e) {
+        Alert.alert("Error", "Failed to print");
     } finally {
-      setIsPrinting(false);
+        setIsPrinting(false);
     }
   };
 
@@ -647,33 +539,47 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', marginTop: 40 },
   emptyText: { textAlign: 'center', color: '#9CA3AF', marginTop: 10, fontStyle: 'italic' },
 
-  printingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
-  printingBox: { backgroundColor: 'white', padding: 20, borderRadius: 12, alignItems: 'center', elevation: 5 },
-  printingText: { marginTop: 10, fontWeight: 'bold', color: '#374151' },
-
+  // --- MODAL STYLES ---
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', width: '100%', maxWidth: 450, borderRadius: 16, padding: 24, elevation: 5 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
+  
   feeSummaryBox: { backgroundColor: '#F3F4F6', padding: 16, borderRadius: 12, marginBottom: 20, alignItems: 'center' },
   feeNameModal: { fontSize: 16, color: '#4B5563', marginBottom: 4 },
   feeAmountModal: { fontSize: 32, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
   feeDueModal: { fontSize: 14, color: '#EF4444', fontWeight: '500' },
+
   methodLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 10 },
   methodCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, marginBottom: 10, backgroundColor: '#FFF' },
   methodActive: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   methodIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   methodTitle: { fontSize: 16, fontWeight: 'bold', color: '#1F2937' },
   methodSub: { fontSize: 12, color: '#6B7280' },
+
   payNowBtn: { backgroundColor: '#2563EB', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
   payNowText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+
+  // Processing
   processingContainer: { alignItems: 'center', paddingVertical: 40 },
   processingText: { marginTop: 16, fontSize: 18, fontWeight: 'bold', color: '#111827' },
   processingSub: { marginTop: 8, color: '#6B7280' },
+
+  // Success
   successContainer: { alignItems: 'center' },
   successIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   successTitle: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 8 },
   successSub: { fontSize: 14, color: '#6B7280', marginBottom: 24 },
+  
+  receiptBox: { width: '100%', backgroundColor: '#F9FAFB', padding: 16, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: '#E5E7EB' },
+  receiptRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  receiptLabel: { color: '#6B7280' },
+  receiptValue: { fontWeight: 'bold', color: '#111827' },
+
   doneBtn: { backgroundColor: '#10B981', paddingVertical: 14, width: '100%', borderRadius: 12, alignItems: 'center' },
   doneText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+
+  printingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
+  printingBox: { backgroundColor: 'white', padding: 20, borderRadius: 12, alignItems: 'center', elevation: 5 },
+  printingText: { marginTop: 10, fontWeight: 'bold', color: '#374151' },
 });

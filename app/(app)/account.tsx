@@ -91,7 +91,8 @@ export default function AccountScreen() {
   const [percentage, setPercentage] = useState(''); 
 
   // Custom Student Amounts
-  const [studentCustomization, setStudentCustomization] = useState<Record<string, { name: string, totalFee: number, amount: string, selected: boolean }>>({});
+  // 🔥 UPDATED TYPE: Added 'pendingFee' to keep track of balance
+  const [studentCustomization, setStudentCustomization] = useState<Record<string, { name: string, totalFee: number, pendingFee: number, amount: string, selected: boolean }>>({});
 
   // --- 🔥 NEW: HISTORY MODAL STATES ---
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
@@ -160,7 +161,7 @@ export default function AccountScreen() {
       setHistoryModalVisible(true);
       try {
           const details = await getStudentFeeDetails(student.studentId);
-          // Sort by date desc
+          // Sort by date desc (Recent First) - Bug Fix
           const sortedHistory = (details?.paymentHistory || []).sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
           setStudentPayments(sortedHistory);
       } catch(e) {
@@ -305,14 +306,16 @@ export default function AccountScreen() {
               if (feeType === 'FIXED') {
                   calcAmount = parseFloat(fixedAmount);
               } else {
-                  const total = s.totalFee || 0;
+                  // 🔥 BUG FIX: Calculate percentage based on PENDING FEE (Balance Amount)
+                  const baseAmount = s.balanceAmount > 0 ? s.balanceAmount : 0;
                   const percent = parseFloat(percentage);
-                  calcAmount = Math.round((total * percent) / 100);
+                  calcAmount = Math.round((baseAmount * percent) / 100);
               }
 
               initialData[s.studentId] = { 
                   name: s.studentName, 
                   totalFee: s.totalFee || 0,
+                  pendingFee: s.balanceAmount || 0, // 🔥 STORE PENDING FEE FOR UI
                   amount: calcAmount.toString(), 
                   selected: true 
               };
@@ -552,7 +555,8 @@ export default function AccountScreen() {
                           <View style={styles.tableHeader}>
                               <Text style={[styles.th, {flex: 1.5}]}>Student</Text>
                               {feeType === 'PERCENTAGE' && (
-                                  <Text style={[styles.th, {flex: 1, textAlign: 'right'}]}>Total Fee</Text>
+                                  // 🔥 UI UPDATE: Changed 'Total Fee' to 'Fee Info'
+                                  <Text style={[styles.th, {flex: 1, textAlign: 'right'}]}>Fee Info</Text>
                               )}
                               <Text style={[styles.th, {width: 90, textAlign: 'center'}]}>Assign</Text>
                           </View>
@@ -576,7 +580,9 @@ export default function AccountScreen() {
                                           
                                           {feeType === 'PERCENTAGE' ? (
                                               <View style={{flex: 1, alignItems: 'flex-end', paddingRight: 10}}>
-                                                  <Text style={styles.totalFeeText}>₹{data.totalFee.toLocaleString()}</Text>
+                                                  {/* 🔥 UI UPDATE: Showing both Total and Pending Fee for clarity */}
+                                                  <Text style={[styles.totalFeeText, {fontSize: 10, color: '#6B7280'}]}>Total: ₹{data.totalFee.toLocaleString()}</Text>
+                                                  <Text style={[styles.totalFeeText, {color: '#EF4444', fontWeight: 'bold'}]}>Due: ₹{data.pendingFee.toLocaleString()}</Text>
                                               </View>
                                           ) : (
                                               <View style={{flex: 0.1}} /> 

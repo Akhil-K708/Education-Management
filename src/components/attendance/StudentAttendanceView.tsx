@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
-import { getStudentAttendance, StudentAttendanceViewDTO } from '../../api/attendanceApi';
+import { getStudentAttendance, getStudentYearlyAttendance, StudentAttendanceViewDTO } from '../../api/attendanceApi';
 import { useAuth } from '../../context/AuthContext';
 
 export default function StudentAttendanceView() {
@@ -19,6 +19,7 @@ export default function StudentAttendanceView() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [attendanceData, setAttendanceData] = useState<StudentAttendanceViewDTO | null>(null);
+  const [yearlyAttendance, setYearlyAttendance] = useState<StudentAttendanceViewDTO | null>(null);
   const [markedDates, setMarkedDates] = useState<any>({});
   const [selectedDateInfo, setSelectedDateInfo] = useState<{date: string, status: string} | null>(null);
 
@@ -30,18 +31,22 @@ export default function StudentAttendanceView() {
     if (!user?.username) return;
     setLoading(true);
     try {
-      const data = await getStudentAttendance(user.username, year, month);
-      setAttendanceData(data);
-      processCalendarDates(data.dailyRecords);
+      const [monthData, yearData] = await Promise.all([
+          getStudentAttendance(user.username, year, month),
+          getStudentYearlyAttendance(user.username, year)
+      ]);
 
-      // Default to Today's Date Logic
+      setAttendanceData(monthData);
+      setYearlyAttendance(yearData);
+      processCalendarDates(monthData.dailyRecords);
+
       const now = new Date();
       const y = now.getFullYear();
       const m = String(now.getMonth() + 1).padStart(2, '0');
       const d = String(now.getDate()).padStart(2, '0');
       const todayStr = `${y}-${m}-${d}`;
 
-      const todayRecord = data.dailyRecords.find((r: any) => r.date === todayStr);
+      const todayRecord = monthData.dailyRecords.find((r: any) => r.date === todayStr);
       
       setSelectedDateInfo({
           date: todayStr,
@@ -100,13 +105,12 @@ export default function StudentAttendanceView() {
       });
   };
 
-  // Helper to get color based on status for the Highlight Card
   const getStatusColor = (status: string) => {
       const s = status.toUpperCase();
       if (s === 'PRESENT' || s === 'P') return '#10B981';
       if (s === 'ABSENT' || s === 'A') return '#EF4444';
       if (s === 'HOLIDAY' || s === 'H') return '#8B5CF6';
-      return '#F59E0B'; // Orange for NOT MARKED
+      return '#F59E0B';
   };
 
   if (loading && !attendanceData) return <View style={styles.centered}><ActivityIndicator size="large" color="#F97316" /></View>;
@@ -122,12 +126,34 @@ export default function StudentAttendanceView() {
       {attendanceData && (
         <View style={styles.card}>
             <View style={styles.statsHeader}>
-                <View>
-                    <Text style={styles.statsLabel}>Month Percentage</Text>
-                    <Text style={styles.percentageText}>{attendanceData.percentage.toFixed(1)}%</Text>
+                
+                {/* 🔥 Updated UI: Yearly Left, Monthly Right with Divider */}
+                <View style={styles.percentageContainer}>
+                    
+                    {/* Yearly Stats (Left) */}
+                    <View style={styles.percentageBlock}>
+                        <Text style={styles.statsLabel}>Yearly</Text>
+                        <Text style={styles.percentageText}>{yearlyAttendance?.percentage.toFixed(1) || '0.0'}%</Text>
+                    </View>
+
+                    {/* Vertical Divider */}
+                    <View style={styles.verticalDivider} />
+
+                    {/* Monthly Stats (Right) */}
+                    <View style={styles.percentageBlock}>
+                        <Text style={styles.statsLabel}>Monthly</Text>
+                        <Text style={styles.percentageText}>{attendanceData.percentage.toFixed(1)}%</Text>
+                    </View>
+
                 </View>
-                <Ionicons name="pie-chart" size={32} color="#F97316" />
+
+                {/* Icon */}
+                <View style={styles.iconContainer}>
+                    <Ionicons name="pie-chart" size={40} color="#F97316" />
+                </View>
+
             </View>
+
             <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                     <Text style={[styles.statValue, {color: '#10B981'}]}>{attendanceData.present}</Text>
@@ -145,7 +171,7 @@ export default function StudentAttendanceView() {
         </View>
       )}
 
-      {/* SELECTED DAY INFO (HIGHLIGHTED) */}
+      {/* SELECTED DAY INFO */}
       {selectedDateInfo && (
           <View style={[styles.infoCard, { borderLeftColor: getStatusColor(selectedDateInfo.status) }]}>
               <View>
@@ -201,9 +227,42 @@ const styles = StyleSheet.create({
   },
   
   // Stats Styles
-  statsHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  statsLabel: { color: '#6B7280', fontSize: 14 },
-  percentageText: { fontSize: 32, fontWeight: 'bold', color: '#111827' },
+  statsHeader: { 
+      flexDirection: 'row', 
+      justifyContent: 'space-between', 
+      alignItems: 'center',
+      marginBottom: 20 
+  },
+  percentageContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+  },
+  percentageBlock: {
+      justifyContent: 'center',
+  },
+  verticalDivider: {
+      width: 1,
+      height: 40,
+      backgroundColor: '#E5E7EB',
+      marginHorizontal: 24, // 🔥 Increased Distance
+  },
+  iconContainer: {
+      marginLeft: 16,
+  },
+  statsLabel: { 
+      color: '#6B7280', 
+      fontSize: 12, 
+      textTransform: 'uppercase', 
+      fontWeight: '700',
+      marginBottom: 2
+  },
+  percentageText: { 
+      fontSize: 26, 
+      fontWeight: '800', 
+      color: '#111827' 
+  },
+  
   statsRow: { flexDirection: 'row', justifyContent: 'space-around', borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 16 },
   statItem: { alignItems: 'center' },
   statValue: { fontSize: 18, fontWeight: 'bold' },
@@ -214,14 +273,14 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   legendText: { fontSize: 12, color: '#4B5563' },
 
-  // Highlight Card Styles (Updated)
+  // Highlight Card Styles
   infoCard: { 
       backgroundColor: '#FFF', 
       padding: 16, 
       borderRadius: 12, 
       borderLeftWidth: 4, 
       marginBottom: 16,
-      flexDirection: 'row',          // Row layout for better look
+      flexDirection: 'row',
       justifyContent: 'space-between', 
       alignItems: 'center',
       elevation: 2,
