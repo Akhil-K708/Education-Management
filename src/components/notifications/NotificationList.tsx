@@ -7,7 +7,6 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    useWindowDimensions,
     View
 } from 'react-native';
 import {
@@ -21,53 +20,90 @@ import { useNotification } from '../../context/NotificationContext';
 
 export default function NotificationList({ onClose }: { onClose: () => void }) {
   const { state } = useAuth();
-  // 🔥 Consume lastUpdated to trigger re-fetch
-  const { refreshCount, lastUpdated } = useNotification();
-  const { width } = useWindowDimensions();
+  const { refreshCount, lastUpdated, decrementUnreadCount } = useNotification();
   
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 10;
 
-  // 🔥 Add lastUpdated dependency
   useEffect(() => {
-    fetchList();
+    fetchNotifications(0, true);
   }, [state.user, lastUpdated]);
 
-  const fetchList = async () => {
+  const fetchNotifications = async (pageNum: number, shouldRefresh: boolean) => {
     if (!state.user?.username) return;
-    // Don't show loading spinner on background updates
-    if (!refreshing && notifications.length === 0) setLoading(true);
+    
+    if (shouldRefresh && !refreshing) setLoading(true);
     
     try {
-      const data = await getAllNotifications(state.user.username);
-      setNotifications(data);
+      const data = await getAllNotifications(state.user.username, pageNum, PAGE_SIZE);
+      
+      if (shouldRefresh) {
+        setNotifications(data);
+      } else {
+        setNotifications(prev => [...prev, ...data]);
+      }
+
+      setHasMore(data.length > 0);
+      setPage(pageNum);
+      
       refreshCount(); 
     } catch(e) {
         console.error("Failed to fetch notifications", e);
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
   };
 
   const onRefresh = () => {
       setRefreshing(true);
-      fetchList();
+      setHasMore(true);
+      fetchNotifications(0, true);
+  };
+
+  const handleLoadMore = () => {
+      if (!hasMore || loadingMore || loading) return;
+      setLoadingMore(true);
+      fetchNotifications(page + 1, false);
   };
 
   const handlePress = async (item: NotificationItem) => {
       if (!item.readFlag) {
           setNotifications(prev => prev.map(n => n.id === item.id ? {...n, readFlag: true} : n));
+          decrementUnreadCount();
           await markNotificationRead(item.id);
           refreshCount();
       }
   };
 
   const handleDelete = async (id: number) => {
+      const item = notifications.find(n => n.id === id);
+      if (item && !item.readFlag) {
+          decrementUnreadCount();
+      }
       setNotifications(prev => prev.filter(n => n.id !== id));
       await deleteNotification(id);
       refreshCount();
+  };
+
+  // 🔥 FIXED: Date + Time (Hrs & Mins only)
+  const formatDateTime = (dateString: string) => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      return date.toLocaleString([], { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric', 
+          hour: '2-digit', 
+          minute: '2-digit' 
+      });
   };
 
   const getIcon = (type: string) => {
@@ -90,6 +126,15 @@ export default function NotificationList({ onClose }: { onClose: () => void }) {
       }
   };
 
+  const renderFooter = () => {
+      if (!loadingMore) return null;
+      return (
+          <View style={{ paddingVertical: 20 }}>
+              <ActivityIndicator size="small" color="#2563EB" />
+          </View>
+      );
+  };
+
   return (
     <View style={styles.container}>
         <View style={styles.header}>
@@ -99,7 +144,7 @@ export default function NotificationList({ onClose }: { onClose: () => void }) {
             </TouchableOpacity>
         </View>
 
-        {loading && !refreshing ? (
+        {loading && !refreshing && notifications.length === 0 ? (
             <View style={styles.center}><ActivityIndicator size="large" color="#F97316"/></View>
         ) : (
             <FlatList
@@ -107,11 +152,14 @@ export default function NotificationList({ onClose }: { onClose: () => void }) {
                 keyExtractor={item => item.id.toString()}
                 contentContainerStyle={{paddingBottom: 20}}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={renderFooter}
                 ListEmptyComponent={
                     <View style={styles.center}>
                         <Ionicons name="notifications-off-outline" size={48} color="#D1D5DB" />
                         <Text style={styles.emptyText}>No notifications yet</Text>
-                        <TouchableOpacity onPress={fetchList} style={{marginTop: 10}}>
+                        <TouchableOpacity onPress={onRefresh} style={{marginTop: 10}}>
                             <Text style={{color:'#2563EB'}}>Tap to Refresh</Text>
                         </TouchableOpacity>
                     </View>
@@ -135,8 +183,10 @@ export default function NotificationList({ onClose }: { onClose: () => void }) {
                             </View>
                             
                             <Text style={styles.itemMsg} numberOfLines={3}>{item.message}</Text>
+                            
+                            {/* 🔥 Displaying Date & Time (No Seconds) */}
                             <Text style={styles.itemTime}>
-                                {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Just now'}
+                                {item.createdAt ? formatDateTime(item.createdAt) : 'Just now'}
                             </Text>
                         </View>
 

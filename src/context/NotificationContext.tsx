@@ -7,6 +7,7 @@ interface NotificationContextType {
   unreadCount: number;
   lastUpdated: number; 
   refreshCount: () => void;
+  decrementUnreadCount: () => void; // 🔥 Added this function
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -24,6 +25,11 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     }
   };
 
+  // 🔥 Helper to decrease count immediately locally
+  const decrementUnreadCount = () => {
+    setUnreadCount(prev => (prev > 0 ? prev - 1 : 0));
+  };
+
   useEffect(() => {
     refreshCount();
   }, [user]);
@@ -31,7 +37,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!user?.username) return;
 
-    const url = `http://192.168.0.112:8080/api/notifications/subscribe/${user.username}`;
+    const url = `http://192.168.0.112:8080/api/student/notifications/subscribe/${user.username}`;
     const es = new EventSource(url);
 
     es.addEventListener("open", () => {
@@ -57,7 +63,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   }, [user]);
 
   return (
-    <NotificationContext.Provider value={{ unreadCount, lastUpdated, refreshCount }}>
+    <NotificationContext.Provider value={{ unreadCount, lastUpdated, refreshCount, decrementUnreadCount }}>
       {children}
     </NotificationContext.Provider>
   );
