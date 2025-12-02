@@ -7,7 +7,7 @@ interface NotificationContextType {
   unreadCount: number;
   lastUpdated: number; 
   refreshCount: () => void;
-  decrementUnreadCount: () => void; // 🔥 Added this function
+  decrementUnreadCount: () => void; 
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -25,7 +25,6 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     }
   };
 
-  // 🔥 Helper to decrease count immediately locally
   const decrementUnreadCount = () => {
     setUnreadCount(prev => (prev > 0 ? prev - 1 : 0));
   };

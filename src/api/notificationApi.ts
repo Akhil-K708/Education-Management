@@ -20,10 +20,8 @@ export const getUnreadCount = async (userId: string): Promise<number> => {
   }
 };
 
-// 🔥 Updated to support Pagination (page, size)
 export const getAllNotifications = async (userId: string, page: number = 0, size: number = 10): Promise<NotificationItem[]> => {
   try {
-    // Backend expects params like ?page=0&size=10
     const response = await notificationApi.get<NotificationItem[]>(`/all/${userId}`, {
       params: { page, size }
     });
