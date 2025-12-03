@@ -26,7 +26,7 @@ import { studentApi } from "../../api/axiosInstance";
 import { useAuth } from "../../context/AuthContext";
 import { Assignment, AssignmentSubmission } from "../../types/assignment";
 
-const API_BASE_URL = 'http://192.168.0.112:8080';
+const API_BASE_URL = 'http://192.168.0.110:8080';
  
 export default function TeacherAssignmentsView() {
   const { state } = useAuth();

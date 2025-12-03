@@ -22,7 +22,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import NotificationList from '../notifications/NotificationList';
 
-const API_BASE_URL = 'http://192.168.0.112:8080';
+const API_BASE_URL = 'http://192.168.0.110:8080';
 
 const getFullImageUrl = (url: string | undefined | null) => {
   if (!url) return null;

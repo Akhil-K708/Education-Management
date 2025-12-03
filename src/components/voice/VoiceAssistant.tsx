@@ -16,7 +16,6 @@ import { useAuth } from '../../context/AuthContext';
 
 // --- CONFIGURATION ---
 const ASSISTANT_NAME = "Nova"; 
-// IMPORTANT: Ensure this IP is correct and your backend is running
 const WS_URL = 'ws://192.168.0.224:8080/ws'; 
 
 const VOICE_OPTIONS = [
@@ -123,7 +122,6 @@ export default function VoiceAssistant() {
       });
   };
 
-  // --- 1. MOBILE AUTO WAKE WORD ---
   useEffect(() => {
       if (Platform.OS !== 'web' && !isVisible) {
           setTimeout(() => {
@@ -132,7 +130,7 @@ export default function VoiceAssistant() {
       }
   }, [isVisible]);
 
-  // --- 2. WEB AUTO WAKE WORD (FIXED) ---
+  // WEB AUTO WAKE WORD
   useEffect(() => {
       if (Platform.OS === 'web' && !isVisible) {
           if ('webkitSpeechRecognition' in window) {
@@ -155,7 +153,6 @@ export default function VoiceAssistant() {
                   }
               };
               
-              // 🔥 Fix: Auto restart if it stops unexpectedly
               wakeRecognizer.onend = () => {
                   if (!isVisible && wakeWordRef.current) {
                       try { wakeRecognizer.start(); } catch(e) {}
@@ -265,8 +262,6 @@ export default function VoiceAssistant() {
           await newSound.playAsync();
       } catch (error) { console.error("Failed to play sample:", error); }
   };
-
-  // ================= WEB HANDLERS (Fixed) =================
   
   const handleWebConnect = () => {
       if (webSocketRef.current) webSocketRef.current.close();
@@ -472,7 +467,7 @@ export default function VoiceAssistant() {
     }
   };
 
-  // --- INJECTED JS (Fixed Mobile Transcript & Wake Word) ---
+  // --- INJECTED JS ---
   const injectedJavaScript = `
     (function() {
         let conn=null,acMic=null,acPlay=null,wn=null,ms=null,q=[],playing=false;
@@ -509,7 +504,6 @@ export default function VoiceAssistant() {
         // 2. LIVE TRANSCRIPT (FIXED)
         function startLiveTranscribe() {
              if (!window.webkitSpeechRecognition) return;
-             // Ensure any existing instances are killed
              if(liveRecognition) { try{liveRecognition.stop();}catch(e){} liveRecognition = null; }
              
              liveRecognition = new webkitSpeechRecognition();
@@ -521,7 +515,6 @@ export default function VoiceAssistant() {
                 for (let i = event.resultIndex; i < event.results.length; ++i) txt += event.results[i][0].transcript;
                 send('LIVE_TRANSCRIPT', txt);
              };
-             // 🔥 Auto restart transcription if it drops while listening
              liveRecognition.onend = () => {
                  if(isLiveTranscriptRunning) { try{liveRecognition.start();}catch(e){} }
              };
@@ -582,8 +575,6 @@ export default function VoiceAssistant() {
         async function startMic(){
             try{
                 stopWakeWord();
-                
-                // 🔥 Start Transcript BEFORE Audio Stream to avoid conflict
                 startLiveTranscribe();
                 
                 ms=await navigator.mediaDevices.getUserMedia({audio:true});
@@ -637,7 +628,6 @@ export default function VoiceAssistant() {
               case 'WS_CONNECTED':
                   setConnectionStatus('CONNECTED');
                   setStatusText(`Hi ${displayName}, I'm listening...`);
-                  // 🔥 Auto Start Mic Logic on Mobile
                   if(!isListening) {
                       webViewRef.current?.postMessage(JSON.stringify({ type: 'START_MIC' }));
                       setIsListening(true);

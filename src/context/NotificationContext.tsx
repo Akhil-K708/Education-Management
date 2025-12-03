@@ -36,7 +36,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!user?.username) return;
 
-    const url = `http://192.168.0.112:8080/api/student/notifications/subscribe/${user.username}`;
+    const url = `http://192.168.0.110:8080/api/student/notifications/subscribe/${user.username}`;
     const es = new EventSource(url);
 
     es.addEventListener("open", () => {
