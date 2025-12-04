@@ -16,7 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 
 // --- CONFIGURATION ---
 const ASSISTANT_NAME = "Nova"; 
-const WS_URL = 'ws://192.168.0.224:8080/ws'; 
+const WS_URL = 'ws://192.168.0.223:8080/ws'; 
 
 const VOICE_OPTIONS = [
     { id: 'kathleen', name: 'Kathleen', gender: 'Female' },
